@@ -1,10 +1,15 @@
 #include <stdio.h>
 #include <mpi.h>
+#include <time.h>
+
+#include "utils.h"
+#include "point.h"
+
+typedef unsigned long long uint64;
 
 int main(int argc, char ** argv)
 {
-	MPI_Init(&argc, &argv);
-	printf("OpenMP/MPI project\n");
-	MPI_Finalize();
+	srand(clock());
+
 	return 0;
 }

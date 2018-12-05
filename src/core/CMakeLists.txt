@@ -7,7 +7,7 @@ file(GLOB_RECURSE SOURCE_FILES
 	private/*.cpp
 	private/*.cxx
 )
-file(GLOB_RECURSE HEDEAR_FILES # CMake doesn't require header files, just to ease editor auto-completion
+file(GLOB_RECURSE HEADER_FILES # CMake doesn't require header files, just to ease editor auto-completion
 
 	public/*.h
 	public/*.hpp
