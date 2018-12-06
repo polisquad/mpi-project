@@ -57,24 +57,48 @@ public:
 	FORCE_INLINE Point operator*(const Point<T> & p) const { return Point(x * p.x, y * p.y); }
 	FORCE_INLINE Point operator/(const Point<T> & p) const { return Point(x / p.x, y / p.y); }
 	/// @}
+	
+	/**
+	 * @brief Point/scalar operators
+	 * 
+	 * @param [in] p other point
+	 * 
+	 * @return Point result of operation
+	 * @{
+	 */
+	FORCE_INLINE Point operator+(T s) const { return Point(x + s, y + s); }
+	FORCE_INLINE Point operator-(T s) const { return Point(x - s, y - s); }
+	FORCE_INLINE Point operator*(T s) const { return Point(x * s, y * s); }
+	FORCE_INLINE Point operator/(T s) const { return Point(x / s, y / s); }
+
+	friend FORCE_INLINE Point operator+(T s, const Point<T> & p) { return Point(p.x + s, p.y + s); }
+	friend FORCE_INLINE Point operator-(T s, const Point<T> & p) { return Point(p.x - s, p.y - s); }
+	friend FORCE_INLINE Point operator*(T s, const Point<T> & p) { return Point(p.x * s, p.y * s); }
+	friend FORCE_INLINE Point operator/(T s, const Point<T> & p) { return Point(p.x / s, p.y / s); }
+	/// @}
 
 	/// @brief Return squared distance between two points
-	FORCE_INLINE T getSquaredDistance(const Point<T> & p) { return operator-(p).getSquaredSize(); }
+	/// @{
+	FORCE_INLINE T operator>>(const Point & p) const { return operator-(p).getSquaredSize(); }
+	FORCE_INLINE T getSquaredDistance(const Point<T> & p) const { return operator>>(p); }
+	/// @}
 
 	/**
 	 * @brief Print point to stream
 	 * 
 	 * @param [in] stream output stream
 	 */
-	inline void print(FILE * stream = stdout);
+	inline void print(FILE * stream = stdout) const;
 };
 
 /////////////////////////////////////////////////
 // Float32 specialization                      //
 /////////////////////////////////////////////////
 
+typedef Point<float32> point;
+
 template<>
-void Point<float32>::print(FILE * stream)
+void Point<float32>::print(FILE * stream) const
 {
 	fprintf(stream, "p2(%.3f, %.3f)\n", x, y);
 }
