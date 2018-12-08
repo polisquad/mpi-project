@@ -11,7 +11,7 @@ namespace Utils
 {
 	
 	/// @brief Generates a random input file
-	FORCE_INLINE void generateRandomInput(uint64 count = 1024 * 1024, const char * filename = "temp/input.txt")
+	FORCE_INLINE void generateRandomInput(uint64 count = 1024 * 1024, const char * filename = "temp.txt")
 	{
 		// Open file
 		FILE * fp = fopen(filename, "w");
@@ -26,7 +26,7 @@ namespace Utils
 	}
 
 	/// @brief Parse input file
-	FORCE_INLINE Array<point> parseInput(const char * filename = "temp/input.txt")
+	FORCE_INLINE Array<point> parseInput(const char * filename = "temp.txt")
 	{
 		Array<point> out;
 
@@ -49,6 +49,10 @@ namespace Utils
 	template<typename T>
 	FORCE_INLINE Array<T> getKFurthest(const Array<T> & pool, uint64 k)
 	{
+		if (pool.empty())
+		{
+			throw std::invalid_argument("Empty pool");
+		}
 		// Out array
 		Array<T> out;
 		out.reserve(k);
