@@ -1,87 +1,41 @@
 #include <stdio.h>
-#include <mpi.h>
-#include <time.h>
 
-#include "utils.h"
-#include "point.h"
-#include "cluster.h"
+#include "async/mpi.h"
 
-typedef unsigned long long uint64;
+class FixedStringMessage
+{
+public:
+	char message[256];
+	FORCE_INLINE FixedStringMessage(const char * _message)
+	{
+		memcpy(message, _message, 255);
+		message[255] = '\0';
+	}
+};
 
 int main(int argc, char ** argv)
 {
-	srand(clock());
-
-	Utils::generateRandomInput(128);
-
-	Array<point> points = Utils::parseInput();
+	MPI::init(argc, argv);
 	
-	const uint8 k = 4;
-	Cluster<point> clusters[k];
-	
-	// Pick k furthest points
-	Array<point> furthest = Utils::getKFurthest(points, k);
-	for (uint8 i = 0; i < k; ++i)
+	MPI::WorldDeviceRef worldDevice = MPI::WorldDevice::getPtr();
+	printf("I'm local device '%s'(#%d)\n", worldDevice->getName().c_str(), worldDevice->getRank());
+	if (worldDevice->getRank() > 0)
 	{
-		clusters[i].addWeight(furthest[i]);
-		clusters[i].commit();
+		// Send message
+		FixedStringMessage message("Yo bro!\n");
+		worldDevice->send(&message, 0, 0);
 	}
-	
-	for (uint64 i = 0; i < 64; ++i)
+	else
 	{
-		for (const point & p : points)
+		MPI_Status status;
+		FixedStringMessage message("");
+		for (uint8 k = 1; k < worldSize; ++k)
 		{
-			float minDist = FLT_MAX;
-			uint8 clusterIdx = -1;
-
-			// Find closest cluster
-			for (uint8 j = 0; j < k; ++j)
-			{
-				const float dist = clusters[j].getDistance(p);
-				if (dist < minDist)
-				{
-					minDist = dist;
-					clusterIdx = j;
-				}
-			}
-
-			// Add weight to closest cluster
-			clusters[clusterIdx].addWeight(p);
+			worldDevice->receive(&message, k, 0);
+			printf("%s\n", message.message);
 		}
-
-		// Commit changes
-		for (uint8 j = 0; j < k; ++j)
-			clusters[j].commit();
 	}
 
-	// Create groups
-	Array<point> groups[k];
-	for (const point & p : points)
-	{
-		float minDist = FLT_MAX;
-		uint8 clusterIdx = -1;
-
-		// Find closest cluster
-		for (uint8 j = 0; j < k; ++j)
-		{
-			const float dist = clusters[j].getDistance(p);
-			if (dist < minDist)
-			{
-				minDist = dist;
-				clusterIdx = j;
-			}
-		}
-
-		// Add point to closest group
-		groups[clusterIdx].push_back(p);
-	}
-
-	for (uint8 j = 0; j < k; ++j)
-	{
-		printf("# Group %u\n", j);
-		for (const point & p : groups[j]) p.print();
-		printf("-----------------\n");
-	}
-
+	MPI::shutdownMPI();
 	return 0;
 }

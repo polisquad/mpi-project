@@ -19,7 +19,7 @@ public:
 		/// @{
 		struct
 		{
-			float32 x, y;
+			T x, y;
 		};
 		/// @}
 	};
@@ -79,8 +79,8 @@ public:
 
 	/// @brief Return squared distance between two points
 	/// @{
-	FORCE_INLINE T operator>>(const Point & p) const { return operator-(p).getSquaredSize(); }
-	FORCE_INLINE T getSquaredDistance(const Point<T> & p) const { return operator>>(p); }
+	FORCE_INLINE T getSquaredDistance(const Point<T> & p) const { return operator-(p).getSquaredSize(); }
+	FORCE_INLINE T getDistance(const Point<T> & p) const { return getSquaredDistance(p); } // Just for commodity, no square root
 	/// @}
 
 	/**

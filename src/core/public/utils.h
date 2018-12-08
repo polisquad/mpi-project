@@ -70,8 +70,8 @@ namespace Utils
 
 				for (const T & edge : out)
 				{
-					const float d = elem >> edge;
-					discard = d == 0.f;
+					const float d = elem.getDistance(edge);
+					discard |= fabsf(d) < FLT_EPSILON;
 
 					dist += d;
 				}

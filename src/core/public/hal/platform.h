@@ -80,6 +80,8 @@
 
 /// Miscs
 
+#include <cassert>
+
 #ifndef ASSERT
 	#define ASSERT(cond, text) assert(cond && text)
 #endif
