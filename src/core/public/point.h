@@ -56,6 +56,11 @@ public:
 	FORCE_INLINE Point operator-(const Point<T> & p) const { return Point(x - p.x, y - p.y); }
 	FORCE_INLINE Point operator*(const Point<T> & p) const { return Point(x * p.x, y * p.y); }
 	FORCE_INLINE Point operator/(const Point<T> & p) const { return Point(x / p.x, y / p.y); }
+
+	FORCE_INLINE Point & operator+=(const Point<T> & p) { x += p.x, y += p.y; return *this; }
+	FORCE_INLINE Point & operator-=(const Point<T> & p) { x -= p.x, y -= p.y; return *this; }
+	FORCE_INLINE Point & operator*=(const Point<T> & p) { x *= p.x, y *= p.y; return *this; }
+	FORCE_INLINE Point & operator/=(const Point<T> & p) { x /= p.x, y /= p.y; return *this; }
 	/// @}
 	
 	/**
@@ -77,10 +82,13 @@ public:
 	friend FORCE_INLINE Point operator/(T s, const Point<T> & p) { return Point(p.x / s, p.y / s); }
 	/// @}
 
+	/// @brief Returns smallest point
+	friend FORCE_INLINE Point<T> min(const Point<T> & a, const Point<T> & b) { return a.x + a.y < b.x + b.y ? a : b; }
+
 	/// @brief Return squared distance between two points
 	/// @{
 	FORCE_INLINE T getSquaredDistance(const Point<T> & p) const { return operator-(p).getSquaredSize(); }
-	FORCE_INLINE T getDistance(const Point<T> & p) const { return getSquaredDistance(p); } // Just for commodity, no square root
+	FORCE_INLINE T getDistance(const Point<T> & p) const { return sqrtf(getSquaredDistance(p)); }
 	/// @}
 
 	/**

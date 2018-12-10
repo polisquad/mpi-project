@@ -51,11 +51,18 @@ namespace Utils
 	{
 		// Out array
 		Array<T> out;
+		const uint64 poolSize = pool.size();
 		out.reserve(k);
 
+		//
+
+		// Get smallest
+		/* T smallest = pool[0];
+		for (auto & p: pool) smallest = min(smallest, p);
+		out.push_back(smallest); */
+
 		// Add first randomly
-		const uint64 i = rand() % pool.size();
-		out.push_back(pool[i]);
+		out.push_back(pool[rand() % poolSize]);
 
 		while (out.size() < k)
 		{
@@ -63,8 +70,10 @@ namespace Utils
 			float maxDist = 0.f;
 			const T * furthest = nullptr;
 
-			for (const T & elem : pool)
+			#pragma omp parallel for
+			for (uint64 i = 0; i < poolSize; ++i)
 			{
+				const T & elem = pool[i];
 				float dist = 0.f;
 				uint8 discard = 0;
 

@@ -33,10 +33,10 @@ namespace MPI
 	}
 
 	/// @brief Shutdown MPI interface
-	FORCE_INLINE bool shutdownMPI()
+	FORCE_INLINE bool shutdown()
 	{
 		static bool bInitialized;
-		if (MPI_Finalize == MPI_SUCCESS)
+		if (MPI_Finalize() == MPI_SUCCESS)
 		{
 			bInitialized = false;
 			return true;
@@ -116,11 +116,7 @@ namespace MPI
 		}
 
 		/// @brief Returns size of world communicator
-		static FORCE_INLINE uint32 getWorldSize()
-		{
-			static uint32 worldSize;
-			return worldSize;
-		}
+		static FORCE_INLINE uint32 getWorldSize() { return worldSize; }
 
 		/// @brief Send an object (blocking)
 		template<class Obj>
@@ -129,6 +125,10 @@ namespace MPI
 		/// @brief Receive an object (blocking)
 		template<class Obj>
 		bool receive(Obj * object, int32 src, int32 tag);
+
+		/// @brief Broadcast an object
+		template<class Obj>
+		bool broadcast(const Obj * object, int32 tag);
 	};
 	typedef Device* DeviceRef;
 
@@ -150,5 +150,6 @@ bool MPI::Device::send(const Obj * object, int32 dest, int32 tag)
 template<class Obj>
 bool MPI::Device::receive(Obj * object, int32 src, int32 tag)
 {
-	return MPI_Recv(object, sizeof(Obj), MPI_BYTE, src, tag, communicator, nullptr) == MPI_SUCCESS;
+	MPI_Status _;
+	return MPI_Recv(object, sizeof(Obj), MPI_BYTE, src, tag, communicator, &_) == MPI_SUCCESS;
 }

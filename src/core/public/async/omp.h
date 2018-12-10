@@ -34,13 +34,13 @@ namespace OMP
 	{
 	protected:
 		/// @brief This critical section
-		CriticalSection mutex;
+		CriticalSection * mutex;
 
 	public:
 		/// @brief Default-constructor, lock
-		FORCE_INLINE ScopeLock() { mutex.lock(); }
+		FORCE_INLINE ScopeLock(CriticalSection * _mutex) : mutex(_mutex) { mutex->lock(); }
 
 		/// @brief Destructor, unlock
-		FORCE_INLINE ~ScopeLock() { mutex.unlock(); }
+		FORCE_INLINE ~ScopeLock() { mutex->unlock(); }
 	};
 } // OMP
