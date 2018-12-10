@@ -3,6 +3,7 @@
 /temp/
 temp
 temp.*
+*.csv
 
 # Binaries --------------------------------------
 /bin/
@@ -12,6 +13,11 @@ temp.*
 ### VS Code ###
 /.vscode/
 
+### Clion ###
+.idea
+
 ### Bitpocket ###
 /.bitpocket/
 .bitignore
+
+
