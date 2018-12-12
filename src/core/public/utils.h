@@ -55,27 +55,29 @@ namespace Utils
 		}
 		// Out array
 		Array<T> out;
+		const uint64 poolSize = pool.size();
 		out.reserve(k);
 
-		// Add first randomly
-		const uint64 i = rand() % pool.size();
-		out.push_back(pool[i]);
+		// Get smallest
+		T smallest = pool[0];
+		for (auto & p: pool) smallest = min(smallest, p);
+		out.push_back(smallest);
 
 		while (out.size() < k)
 		{
-
 			float maxDist = 0.f;
 			const T * furthest = nullptr;
 
-			for (const T & elem : pool)
+			for (uint64 i = 0; i < poolSize; ++i)
 			{
+				const T & elem = pool[i];
 				float dist = 0.f;
 				uint8 discard = 0;
 
 				for (const T & edge : out)
 				{
-					const float d = elem >> edge;
-					discard = d == 0.f;
+					const float d = elem.getDistance(edge);
+					discard |= fabsf(d) < FLT_EPSILON;
 
 					dist += d;
 				}
@@ -88,7 +90,7 @@ namespace Utils
 			}
 
 			// Add furthest point
-			out.push_back(*furthest);
+			if (LIKELY(furthest != nullptr)) out.push_back(*furthest);
 		}
 
 		return out;

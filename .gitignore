@@ -3,15 +3,22 @@
 /temp/
 temp
 temp.*
+*.csv
 
 # Binaries --------------------------------------
 /bin/
 /dist/
+/.env/
 
 # Editor files ----------------------------------
 ### VS Code ###
 /.vscode/
 
+### Clion ###
+.idea
+
 ### Bitpocket ###
 /.bitpocket/
 .bitignore
+
+

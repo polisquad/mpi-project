@@ -62,6 +62,9 @@
 #ifndef UNLIKELY
 	#define UNLIKELY(condition) (condition)
 #endif
+#ifndef FORCE_LOOP_UNROLL
+	#define FORCE_LOOP_UNROLL
+#endif
 
 /// Method modifiers
 
@@ -79,6 +82,8 @@
 #endif
 
 /// Miscs
+
+#include <cassert>
 
 #ifndef ASSERT
 	#define ASSERT(cond, text) assert(cond && text)
