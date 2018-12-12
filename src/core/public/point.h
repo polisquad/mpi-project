@@ -39,10 +39,15 @@ public:
 
 	/// @brief Assignment-operator
 	FORCE_INLINE Point & operator=(const Point<T> & p) = default;
-
 	
 	/// @brief Return squared length of point (from origin)
 	FORCE_INLINE T getSquaredSize() const { return (x * x) + (y * y); }
+
+	/// @brief Compare points
+	/// @{
+	FORCE_INLINE bool operator==(const Point<T> & p) { return fabsf(x - p.x) <= (FLT_EPSILON * 2.f) & fabsf(y - p.y) <= (FLT_EPSILON * 2.f); }
+	FORCE_INLINE bool operator!=(const Point<T> & p) { return fabsf(x - p.x) > (FLT_EPSILON * 2.f) | fabsf(y - p.y) > (FLT_EPSILON * 2.f); }
+	/// @}
 	
 	/**
 	 * @brief Point/Point operators

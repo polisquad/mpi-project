@@ -25,7 +25,7 @@ def parse_2d(file=in_file):
 
 
 def plot2d(x1s, x2s, colors):
-    plt.scatter(x1s, x2s, c=colors, marker="X")
+    plt.scatter(x1s, x2s, c=colors, marker=".")
     plt.show()
 
 

@@ -126,9 +126,13 @@ namespace MPI
 		template<class Obj>
 		bool receive(Obj * object, int32 src, int32 tag);
 
-		/// @brief Broadcast an object
-		template<class Obj>
-		bool broadcast(const Obj * object, int32 tag);
+		/// @brief Send a buffer (send content)
+		template<typename T>
+		bool sendBuffer(const T * buffer, uint64 num, int32 dest, int32 tag);
+
+		/// @brief Send a buffer (send content)
+		template<typename T>
+		bool receiveBuffer(T * buffer, uint64 num, int32 src, int32 tag);
 	};
 	typedef Device* DeviceRef;
 
@@ -152,4 +156,17 @@ bool MPI::Device::receive(Obj * object, int32 src, int32 tag)
 {
 	MPI_Status _;
 	return MPI_Recv(object, sizeof(Obj), MPI_BYTE, src, tag, communicator, &_) == MPI_SUCCESS;
+}
+
+template<typename T>
+bool MPI::Device::sendBuffer(const T * buffer, uint64 num, int32 dest, int32 tag)
+{
+	return MPI_Send(buffer, num * sizeof(T), MPI_BYTE, dest, tag, communicator) == MPI_SUCCESS;
+}
+
+template<typename T>
+bool MPI::Device::receiveBuffer(T * buffer, uint64 num, int32 src, int32 tag)
+{
+	MPI_Status _;
+	return MPI_Recv(buffer, num * sizeof(T), MPI_BYTE, src, tag, communicator, &_) == MPI_SUCCESS;
 }

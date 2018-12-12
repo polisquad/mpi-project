@@ -7,16 +7,7 @@
 #include "cluster.h"
 #include "point.h"
 
-class FixedStringMessage
-{
-public:
-	char message[256];
-	FORCE_INLINE FixedStringMessage(const char * _message)
-	{
-		memcpy(message, _message, 255);
-		message[255] = '\0';
-	}
-};
+#define MAX_ITERATIONS 100
 
 int main(int argc, char ** argv)
 {
@@ -24,20 +15,32 @@ int main(int argc, char ** argv)
 
 	// Common initialization
 	float64 counter = 0.0;
-	const uint32 numClusters = 6;
-	const uint64 datasetSize = 256;
-	Array<point> dataset; dataset.reserve(datasetSize);
+
+	const uint32 numClusters = 4;
+	const uint64 datasetSize = 1024 * 4;
 
 	// Generate dummy dataset
+	Array<point> dataset; dataset.reserve(datasetSize);
 	for (uint64 i = 0; i < datasetSize; ++i)
-		dataset.push_back(point(rand() * 10.f / float32(RAND_MAX), rand() * 10.f / float32(RAND_MAX)));
+	{
+		point p(6, 6);
+		do
+			p = point(rand() * 10.f / float32(RAND_MAX), rand() * 10.f / float32(RAND_MAX));
+		while (sinf(p.y) * sinf(p.y) + cosf(p.x) * cosf(p.y) < 0.2f | p.x * p.y < 9.f);
+		dataset.push_back(p);
+	}
+
+	//////////////////////////////////////////////////
+	// K-Means algorithm                            //
+	//////////////////////////////////////////////////
 
 	// Get furthest centroids
-	Array<point> centroids = Utils::getKFurthest(dataset, numClusters);
-	/* Array<point> centroids;
+	Array<point> centroids/*  = Utils::getKFurthest(dataset, numClusters);
+	ASSERT(centroids.size() == numClusters, "Number of centroids doesn't match number of clusters") */;
+
+	// Instead try random
 	for (uint32 k = 0; k < numClusters; ++k)
-		centroids.push_back(dataset[rand() % datasetSize]); */
-	ASSERT(centroids.size() == numClusters, "Number of centroids doesn't match number of clusters");
+		centroids.push_back(dataset[rand() % datasetSize]);
 
 	// Create clusters
 	Array<Cluster<point>> clusters;
@@ -59,73 +62,110 @@ int main(int argc, char ** argv)
 	const uint64 offset = device->getRank();
 	const uint32 step = device->getCommSize();
 
+	// Check if converges
+	bool bConv = false;
+
+	// Start counter, for performance measure
 	counter -= MPI_Wtime();
 
-	for (uint32 epoch = 0; epoch < 256; ++epoch)
+	// Epoch iterations
+	for (uint32 epoch = 0; epoch < MAX_ITERATIONS & !bConv; ++epoch)
 	{
-		#pragma omp parallel for schedule(static)
-		for (uint64 i = offset; i < datasetSize; i += step)
+		// Create a copy of the current state of the clusters
+		// We use this copy to check convergence
+		Array<Cluster<point>> prevClusters(clusters);
+
+		#pragma omp parallel
 		{
-			const auto & p = dataset[i];
+			// We use a private local copy on each thread
+			// to avoid locking the resource for each udpate.
+			// We rather delay the update on the shared clusters
+			// till all threads have calculated the partial updates.
+			Array<Cluster<point>> localClusters(clusters);
 
-			// Find closest cluster
-			float32 minDist = clusters[0].getDistance(p);
-			uint32 minIdx = 0;
-
-			for (uint32 k = 1; k < numClusters; ++k)
+			#pragma omp for
+			for (uint64 i = offset; i < datasetSize; i += step)
 			{
-				float32 dist = clusters[k].getDistance(p);
+				const auto & p = dataset[i];
 
-				if (dist < minDist)
+				// Find closest cluster
+				float32 minDist = localClusters[0].getDistance(p);
+				uint32 minIdx = 0;
+
+				for (uint32 k = 1; k < numClusters; ++k)
 				{
-					minDist = dist;
-					minIdx = k;
+					const float32 dist = localClusters[k].getDistance(p);
+
+					if (dist < minDist)
+					{
+						minDist = dist;
+						minIdx = k;
+					}
+				}
+				
+				// Add weight to the closest cluster
+				localClusters[minIdx].addWeight(p);
+			}
+
+			for (uint8 k = 0; k < numClusters; ++k)
+			{
+				auto & cluster = clusters[k];
+				
+				// Fuse and lock the cluster resource.
+				// We don't want separate updates to overlap.
+				{
+					OMP::ScopeLock _(&cluster.getUsageGuard());
+					cluster.fuse(localClusters[k]);
 				}
 			}
-			
-			clusters[minIdx].addWeight(p);
 		}
 
+		/**
+		 * All slave hosts (rank > 1) send their updates
+		 * to the master host (rank == 0).
+		 * The master host receives the udpates, merges
+		 * them and send back the final clusters.
+		 */
 		if (device->getRank() > 0)
 		{
-			// Send clusters to master
-			for (uint32 k = 0; k < numClusters; ++k)
-				device->send(&clusters[k], 0, k);
-			
-			// Receive udpated clusters
-			for (uint32 k = 0; k < numClusters; ++k)
-			{
-				device->receive(&clusters[k], 0, k);
+			// Send updates to master
+			device->sendBuffer(&clusters[0], numClusters, 0, epoch);
 
-				// Commit changes
-				clusters[k].commit();
-				//printf("(%d, %u): ", device->getRank(), k); clusters[k].printDebug();
-			}
+			// First receives convergence flag and final clusters
+			device->receive(&bConv, 0, epoch);
+			device->receiveBuffer(&clusters[0], numClusters, 0, epoch);
 		}
 		else
 		{
-			for (uint32 i = 1; i < device->getCommSize(); ++i)
+			const int32 commSize = device->getCommSize();
+			for (uint32 i = 1; i < commSize; ++i)
 			{
-				for (uint32 k = 0; k < numClusters; ++k)
-				{
-					// Receive cluster udpate
-					Cluster<point> cluster;
-					device->receive(&cluster, i, k);
+				// Receive partial udpates from slaves
+				Array<Cluster<point>> partialUpdates(clusters);
+				device->receiveBuffer(&partialUpdates[0], numClusters, i, epoch);
 
-					// Fuse cluster
-					clusters[k] += cluster;
-				}
+				// Fuse clusters
+				for (uint32 k = 0; k < numClusters; ++k)
+					clusters[k].fuse(partialUpdates[k]);
 			}
 
-			// Send back udpated clusters
-			for (uint32 i = 1; i < device->getCommSize(); ++i)
+			// Check convergence
+			bConv = true;
+			for (uint32 k = 0; k < numClusters; ++k)
 			{
-				for (uint32 k = 0; k < numClusters; ++k)
-				{
-					device->send(&clusters[k], i, k);
-				}
+				clusters[k].commit();
+				bConv &= prevClusters[k] == clusters[k];
+			}
+			
+			// Send convergence to all machines
+			for (uint32 i = 1; i < commSize; ++i)
+			{
+				device->send(&bConv, i, epoch);
+				device->sendBuffer(&clusters[0], numClusters, i, epoch);
 			}
 		}
+
+		if (UNLIKELY(bConv == true)) printf("algorithm converges after %u epochs\n", epoch);
 	}
 
 	counter += MPI_Wtime();

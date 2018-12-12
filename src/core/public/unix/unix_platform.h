@@ -36,3 +36,4 @@ typedef struct UnixPlatformTypes : public GenericPlatformTypes
 #define FORCE_NOINLINE __attribute__((noinline))
 #define GCC_PACK(n) __attribute__((packed,aligned(n)))
 #define GCC_ALIGN(n) __attribute__((aligned(n)))
+#define FORCE_LOOP_UNROLL __attribute__((optimize("unroll-loops")))
