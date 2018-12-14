@@ -247,7 +247,7 @@ void printResults(const Array<Data> &dataset, Array<Cluster<Data>> &clusters)
 }
 
 /**
- * Computes the purity, which is the total number of data points defined correctly in the clusters.
+ * Computes the purity, which is the percentage of data points defined correctly in the clusters.
  * @param dataset
  * @param clusters
  * @return
