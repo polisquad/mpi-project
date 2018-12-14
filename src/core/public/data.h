@@ -25,7 +25,15 @@ public:
 
     virtual float getDistance(const Data &other) const;
 
-    static std::vector<Data> readCSVFile(std::string const &filename);
+    static std::vector<Data> readCSVFileNormalized(std::string const &filename);
+
+    static void normalizeData(vector<Data> &dataset, Data const &min_values, Data const &max_values);
+
+    virtual void normalize(Data const &min_values, Data const &max_values);
+
+    virtual void setLowest(Data const &other);
+
+    virtual void setHighest(Data const &other);
 
     Data operator+(Data const &other);
 

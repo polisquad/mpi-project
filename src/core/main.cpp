@@ -45,7 +45,7 @@ void kMeans()
     float64 counter = 0.0;
 //    Array<Point<float>> dataset = generateDataset(DATASET_SIZE);
 //    Array<Cluster<Point<float>>> clusters = initClusters(dataset);
-    vector<Data> dataset = Data::readCSVFile("dataset/iris.data");
+    vector<Data> dataset = Data::readCSVFileNormalized("dataset/iris.data");
     vector<Cluster<Data>> clusters = initClusters(dataset);
 
     // Check if converges

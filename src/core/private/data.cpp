@@ -43,19 +43,27 @@ float Data::getDistance(const Data &other) const
     return sqrt(squaredSum);
 }
 
-std::vector<Data> Data::readCSVFile(std::string const &filename)
+std::vector<Data> Data::readCSVFileNormalized(std::string const &filename)
 {
-    vector<Data> out;
+    vector<Data> dataset;
     vector<float> x;
     std::ifstream file(filename);
+    Data lowest;
+    Data highest;
 
     CSVRow row;
     while (file >> row)
     {
         if (row.size() > 0)
-            out.emplace_back(Data(row));
+        {
+            const Data &data = Data(row);
+            dataset.emplace_back(data);
+            lowest.setLowest(data);
+            highest.setHighest(data);
+        }
     }
-    return out;
+    normalizeData(dataset, lowest, highest);
+    return dataset;
 }
 
 float const &Data::operator[](size_t index) const
@@ -115,6 +123,57 @@ bool Data::operator==(Data const &other)
 const string &Data::getCls() const
 {
     return cls;
+}
+
+/**
+ * Updates the attributes picking the minimum values from this and the other Data
+ * @param other
+ * @return
+ */
+void Data::setLowest(Data const &other)
+{
+    vector<float> result;
+    if (attributes.empty())
+    {
+        attributes = other.attributes;
+    } else
+    {
+        std::transform(begin(), end(), other.begin(), std::back_inserter(result),
+                       [](float x, float y)
+                       { return std::min(x, y); });
+        attributes = result;
+    }
+}
+
+void Data::setHighest(Data const &other)
+{
+    vector<float> result;
+    if (attributes.empty())
+    {
+        attributes = other.attributes;
+    } else
+    {
+        std::transform(begin(), end(), other.begin(), std::back_inserter(result),
+                       [](float x, float y)
+                       { return std::max(x, y); });
+        attributes = result;
+    }
+}
+
+void Data::normalize(Data const &min_values, Data const &max_values)
+{
+    for (int i = 0; i < attributes.size(); ++i)
+    {
+        attributes[i] = (attributes[i] - min_values[i]) / (max_values[i] - min_values[i]);
+    }
+}
+
+void Data::normalizeData(vector<Data> &dataset, Data const &min_values, Data const &max_values)
+{
+    std::for_each(dataset.begin(), dataset.end(), [min_values, max_values](Data &v)
+    {
+        v.normalize(min_values, max_values);
+    });
 }
 
 Data::Data()
