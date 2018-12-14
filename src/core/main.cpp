@@ -2,11 +2,8 @@
 
 #include "async/mpi.h"
 #include "async/omp.h"
-#include "containers/array.h"
 #include "utils.h"
 #include "cluster.h"
-#include "point.h"
-#include "csv.h"
 #include "data.h"
 
 #define MAX_ITERATIONS 100
@@ -221,16 +218,17 @@ void writeResult(const Array<Point<float>> &dataset, const Array<Cluster<Point<f
  * @param datasetSize
  * @return
  */
-Array<Point<float>> generateDataset(uint64 datasetSize) {
+Array<Point<float>> generateDataset(uint64 datasetSize)
+{
     Array<point> dataset;
     dataset.reserve(datasetSize);
     for (uint64 i = 0; i < datasetSize; ++i)
-	{
-		point p(6, 6);
-		do
-			p = point(rand() * 10.f / float32(RAND_MAX), rand() * 10.f / float32(RAND_MAX));
-		while (sinf(p.y) * sinf(p.y) + cosf(p.x) * cosf(p.y) < 0.2f | p.x * p.y < 9.f);
-		dataset.push_back(p);
-	}
+    {
+        point p(6, 6);
+        do
+            p = point(rand() * 10.f / float32(RAND_MAX), rand() * 10.f / float32(RAND_MAX));
+        while (sinf(p.y) * sinf(p.y) + cosf(p.x) * cosf(p.y) < 0.2f | p.x * p.y < 9.f);
+        dataset.push_back(p);
+    }
     return dataset;
 }

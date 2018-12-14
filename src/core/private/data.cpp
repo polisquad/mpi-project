@@ -1,8 +1,6 @@
 #include <data.h>
-#include <csv.h>
 #include <numeric>
 
-#include "data.h"
 #include "utils.h"
 
 using std::vector;
@@ -56,10 +54,10 @@ unsigned long Data::size()
 Data::Data(const CSVRow &row)
 {
     float x;
-    for (int i = 0; i < row.size()-1; ++i)
+    for (int i = 0; i < row.size() - 1; ++i)
     {
         x = std::atof(row[i].c_str());
         attributes.push_back(x);
     }
-    cls = row[row.size()-1];
+    cls = row[row.size() - 1];
 }

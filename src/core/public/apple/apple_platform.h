@@ -8,5 +8,5 @@
  */
 typedef struct ApplePlatformTypes : public GenericPlatformTypes
 {
-	// Empty
+    // Empty
 } PlatformTypes;
