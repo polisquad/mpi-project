@@ -6,7 +6,7 @@
 #include "cluster.h"
 #include "data.h"
 
-#define MAX_ITERATIONS 100
+#define MAX_ITERATIONS 1000
 #define NUM_CLUSTERS 3
 #define DATASET_SIZE 1024 * 4
 
@@ -30,6 +30,8 @@ template<typename T>
 uint32 findClosestCluster(const Array<Cluster<T>> &clusters, const T &p);
 
 void printResults(const Array<Data> &dataset, Array<Cluster<Data>> &clusters);
+
+float computePurity(const Array<Data> &dataset, Array<Cluster<Data>> &clusters);
 
 int main(int argc, char **argv)
 {
@@ -241,10 +243,38 @@ uint32 findClosestCluster(const Array<Cluster<T>> &clusters, const T &p)
 
 void printResults(const Array<Data> &dataset, Array<Cluster<Data>> &clusters)
 {
-    for (uint64 i = 0; i < dataset.size(); ++i)
+    std::cout << "Purity: " << computePurity(dataset, clusters) << "\n";
+}
+
+/**
+ * Computes the purity, which is the total number of data points defined correctly in the clusters.
+ * @param dataset
+ * @param clusters
+ * @return
+ */
+float computePurity(const Array<Data> &dataset, Array<Cluster<Data>> &clusters)
+{
+    float purity = 0;
+    unsigned long size = dataset.size();
+    std::map<int, std::map<string, int>> assignments;
+    for (auto const &p : dataset)
     {
-        const auto &p = dataset[i];
         uint32 minIdx = findClosestCluster(clusters, p);
-        std::cout << p.getCls() << " in cluster " << minIdx << "\n";
+        assignments[minIdx][p.getCls()] += 1;
     }
+    for (auto const &assignment : assignments)
+    {
+        string max_k;
+        float max_v = 0;
+        for (auto const &label : assignment.second)
+        {
+            if (label.second > max_v)
+            {
+                max_k = label.first;
+                max_v = label.second;
+            }
+        }
+        purity += max_v / size;
+    }
+    return purity;
 }
