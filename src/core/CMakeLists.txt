@@ -20,7 +20,7 @@ add_executable(${PROJECT_NAME}
 	./main.cpp
 	${SOURCE_FILES}
 	${HEADER_FILES}
-)
+		private/data.cpp public/data.h private/csv.cpp public/csv.h)
 
 ## Load libraries
 find_package(MPI REQUIRED)

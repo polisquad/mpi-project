@@ -109,31 +109,4 @@ public:
 // Float32 specialization                      //
 /////////////////////////////////////////////////
 
-Array<Point<float>> generateDataset(uint64 datasetSize);
-
 typedef Point<float32> point;
-
-template<>
-void Point<float32>::print(FILE * stream) const
-{
-	fprintf(stream, "p2(%.3f, %.3f)\n", x, y);
-}
-
-/**
- * Generates a dummy dataset
- * @param datasetSize
- * @return
- */
-Array<Point<float>> generateDataset(uint64 datasetSize) {
-    Array<point> dataset;
-    dataset.reserve(datasetSize);
-    for (uint64 i = 0; i < datasetSize; ++i)
-	{
-		point p(6, 6);
-		do
-			p = point(rand() * 10.f / float32(RAND_MAX), rand() * 10.f / float32(RAND_MAX));
-		while (sinf(p.y) * sinf(p.y) + cosf(p.x) * cosf(p.y) < 0.2f | p.x * p.y < 9.f);
-		dataset.push_back(p);
-	}
-    return dataset;
-}
