@@ -9,15 +9,33 @@
 class Data
 {
 public:
+    Data();
+
     explicit Data(const CSVRow &row);
+
+    explicit Data(const vector<float> &attributes);
 
     float const &operator[](size_t index) const;
 
-    unsigned long size();
+    unsigned long size() const;
 
-    virtual float getEuclidianDistance(const Data &other);
+    vector<float, std::allocator<float>>::const_iterator begin() const;
+
+    vector<float, std::allocator<float>>::const_iterator end() const;
+
+    virtual float getDistance(const Data &other) const;
 
     static std::vector<Data> readCSVFile(std::string const &filename);
+
+    Data operator+(Data const &other);
+
+    Data operator/(float const &d);
+
+    Data operator+=(Data const &other);
+
+    bool operator==(Data const &other);
+
+    const string &getCls() const;
 
 private:
     std::vector<float> attributes;

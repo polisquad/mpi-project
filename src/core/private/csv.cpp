@@ -30,12 +30,6 @@ void CSVRow::readNextRow(istream &str)
     {
         m_data.push_back(cell);
     }
-    // This checks for a trailing comma with no data after it.
-    if (!lineStream && cell.empty())
-    {
-        // If there was a trailing comma then add an empty element.
-        m_data.push_back("");
-    }
 }
 
 istream &operator>>(istream &str, CSVRow &data)
