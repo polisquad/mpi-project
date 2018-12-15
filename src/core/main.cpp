@@ -6,21 +6,48 @@
 #include "utils.h"
 #include "cluster.h"
 #include "point.h"
+#include "kmeans.h"
 
 #define MAX_ITERATIONS 100
 
 int main(int argc, char ** argv)
 {
 	srand(clock());
+	
+	// Generate dummy dataset
+	const uint64 datasetSize = 1024 * 4;
+	Array<point> dataset; dataset.reserve(datasetSize);
+	for (uint64 i = 0; i < datasetSize; ++i)
+	{
+		point p(6, 6);
+		do
+			p = point(rand() * 10.f / float32(RAND_MAX), rand() * 10.f / float32(RAND_MAX));
+		while (sinf(p.y) * sinf(p.y) + cosf(p.x) * cosf(p.y) < 0.2f | p.x * p.y < 9.f);
+		dataset.push_back(p);
+	}
+
+	MPI::init(argc, argv);
+	const auto device = MPI::WorldDevice::getPtr();
+	printf("Machine %s running on node %d/%u ...\n", device->getName().c_str(), device->getRank(), device->getCommSize());
+
+	const uint32 numClusters = 5;
+	// -1, no iter limits, run till convergence
+	auto clusters = KMeans::genClusters(dataset, numClusters, -1, KMeans::EClusterInitialization::Furthest);
+
+	//////////////////////////////////////////////////
+	// OLD CODE
+	//////////////////////////////////////////////////
+	
+	//return 0;
 
 	// Common initialization
-	float64 counter = 0.0;
+	/* float64 counter = 0.0;
 
 	const uint32 numClusters = 4;
-	const uint64 datasetSize = 1024 * 4;
+	//const uint64 datasetSize = 1024 * 4;
 
 	// Generate dummy dataset
-	Array<point> dataset; dataset.reserve(datasetSize);
+	//Array<point> dataset; dataset.reserve(datasetSize);
 	for (uint64 i = 0; i < datasetSize; ++i)
 	{
 		point p(6, 6);
@@ -33,10 +60,6 @@ int main(int argc, char ** argv)
 	//////////////////////////////////////////////////
 	// K-Means algorithm                            //
 	//////////////////////////////////////////////////
-
-	// Get furthest centroids
-	Array<point> centroids/*  = Utils::getKFurthest(dataset, numClusters);
-	ASSERT(centroids.size() == numClusters, "Number of centroids doesn't match number of clusters") */;
 
 	// Instead try random
 	for (uint32 k = 0; k < numClusters; ++k)
@@ -120,19 +143,18 @@ int main(int argc, char ** argv)
 			}
 		}
 
-		/**
-		 * All slave hosts (rank > 1) send their updates
-		 * to the master host (rank == 0).
-		 * The master host receives the udpates, merges
-		 * them and send back the final clusters.
-		 */
+		
+		// All slave hosts (rank > 1) send their updates
+		// to the master host (rank == 0).
+		// The master host receives the udpates, merges
+		// them and send back the final clusters.
 		if (device->getRank() > 0)
 		{
 			// Send updates to master
 			device->sendBuffer(&clusters[0], numClusters, 0, epoch);
 
 			// First receives convergence flag and final clusters
-			device->receive(&bConv, 0, epoch);
+			device->receive(bConv, 0, epoch);
 			device->receiveBuffer(&clusters[0], numClusters, 0, epoch);
 		}
 		else
@@ -168,7 +190,7 @@ int main(int argc, char ** argv)
 		if (UNLIKELY(bConv == true)) printf("algorithm converges after %u epochs\n", epoch);
 	}
 
-	counter += MPI_Wtime();
+	counter += MPI_Wtime(); */
 
 	MPI::shutdown();
 
@@ -195,6 +217,6 @@ int main(int argc, char ** argv)
 	}
 #endif
 
-	printf("elapsed: %f s\n", counter);
+	//printf("elapsed: %f s\n", counter);
 	return 0;
 }

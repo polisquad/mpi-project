@@ -52,6 +52,9 @@ public:
 	FORCE_INLINE friend Cluster fuse(const Cluster<T> & a, const Cluster<T> & b) { return a.fuse(b); }
 	/// @}
 
+	/// @brief Returns distance between two clusters current centroids
+	FORCE_INLINE float32 getDrift(const Cluster<T> & other) const { return centroid.getDistance(other.centroid); }
+
 	/// @brief Commit changes to cluster
 	FORCE_INLINE void commit()
 	{
