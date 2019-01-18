@@ -3,6 +3,9 @@
 #include "core_types.h"
 #include "containers/array.h"
 #include "containers/string.h"
+#include "templates/enable_if.h"
+#include "templates/is_trivial.h"
+#include "templates/is_array.h"
 #include "templates/singleton.h"
 
 #include <mpi.h>
@@ -18,6 +21,9 @@ namespace MPI
 	/// @brief Global MPI initialization
 	FORCE_INLINE bool init(int & argc, char ** & argv)
 	{
+		// Don't init again
+		if (bInitialized) return true;
+
 		if (MPI_Init(&argc, &argv) == MPI_SUCCESS)
 		{
 			// Get world communicator size
@@ -119,20 +125,21 @@ namespace MPI
 		static FORCE_INLINE uint32 getWorldSize() { return worldSize; }
 
 		/// @brief Send an object (blocking)
-		template<class Obj>
-		bool send(const Obj * object, int32 dest, int32 tag);
+		/// @{
+		template<typename T>
+		EnableIfT<IsTrivialV(T), bool> send(const T & object, int32 dest, int32 tag = MPI_ANY_TAG);
 
 		/// @brief Receive an object (blocking)
-		template<class Obj>
-		bool receive(Obj * object, int32 src, int32 tag);
+		template<typename T>
+		EnableIfT<IsTrivialV(T), bool> receive(T & object, int32 src, int32 tag = MPI_ANY_TAG);
 
 		/// @brief Send a buffer (send content)
 		template<typename T>
-		bool sendBuffer(const T * buffer, uint64 num, int32 dest, int32 tag);
+		bool sendBuffer(const T * buffer, uint64 num, int32 dest, int32 tag = MPI_ANY_TAG);
 
 		/// @brief Send a buffer (send content)
 		template<typename T>
-		bool receiveBuffer(T * buffer, uint64 num, int32 src, int32 tag);
+		bool receiveBuffer(T * buffer, uint64 num, int32 src, int32 tag = MPI_ANY_TAG);
 	};
 	typedef Device* DeviceRef;
 
@@ -144,18 +151,18 @@ namespace MPI
 	typedef WorldDevice* WorldDeviceRef;
 } // MPI
 
-template<class Obj>
-bool MPI::Device::send(const Obj * object, int32 dest, int32 tag)
+template<typename T>
+EnableIfT<IsTrivialV(T), bool> MPI::Device::send(const T & object, int32 dest, int32 tag)
 {
 	// We assume we can perform a shallow copy of the object
-	return MPI_Send(object, sizeof(Obj), MPI_BYTE, dest, tag, communicator) == MPI_SUCCESS;
+	return MPI_Send(&object, sizeof(T), MPI_BYTE, dest, tag, communicator) == MPI_SUCCESS;
 }
 
-template<class Obj>
-bool MPI::Device::receive(Obj * object, int32 src, int32 tag)
+template<typename T>
+EnableIfT<IsTrivialV(T), bool> MPI::Device::receive(T & object, int32 src, int32 tag)
 {
 	MPI_Status _;
-	return MPI_Recv(object, sizeof(Obj), MPI_BYTE, src, tag, communicator, &_) == MPI_SUCCESS;
+	return MPI_Recv(&object, sizeof(T), MPI_BYTE, src, tag, communicator, &_) == MPI_SUCCESS;
 }
 
 template<typename T>
