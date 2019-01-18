@@ -1,15 +1,13 @@
-import os
 import matplotlib.pyplot as plt
+import os
 
 data_path = os.path.dirname(os.path.realpath(__file__))
-in_file = os.path.join(data_path, "in.csv")
+# in_file = os.path.join(data_path, "in.csv")
 out_file = os.path.join(data_path, "out.csv")
 
 
-def parse_2d(file=in_file):
-
+def parse_2d(file=out_file):
     with open(file) as f:
-
         lines = f.readlines()
         x1s = []
         x2s = []
@@ -31,3 +29,6 @@ def plot2d(x1s, x2s, colors):
 
 x1s, x2s, colors = parse_2d(file=out_file)
 plot2d(x1s, x2s, colors)
+
+if __name__ == '__main__':
+    parse_2d()

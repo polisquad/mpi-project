@@ -4,6 +4,7 @@
 temp
 temp.*
 *.csv
+cmake-build-debug/
 
 # Binaries --------------------------------------
 /bin/
@@ -22,3 +23,6 @@ temp.*
 .bitignore
 
 
+# Other ----------------------------------------
+dataset/
+.DS_Store

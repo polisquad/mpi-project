@@ -8,7 +8,7 @@
  */
 typedef struct UnixPlatformTypes : public GenericPlatformTypes
 {
-	// Empty
+    // Empty
 } PlatformTypes;
 
 /////////////////////////////////////////////////
@@ -16,9 +16,9 @@ typedef struct UnixPlatformTypes : public GenericPlatformTypes
 /////////////////////////////////////////////////
 
 #if defined(_LINUX64) || defined(_LP64)
-	#define PLATFORM_64 1
+#define PLATFORM_64 1
 #else
-	#define PLATFORM_64 0
+#define PLATFORM_64 0
 #endif
 
 #define PLATFORM_LITTLE_ENDIAN 1
@@ -29,9 +29,9 @@ typedef struct UnixPlatformTypes : public GenericPlatformTypes
 /////////////////////////////////////////////////
 
 #if BUILD_DEBUG
-	#define FORCE_INLINE inline
+#define FORCE_INLINE inline
 #else
-	#define FORCE_INLINE __attribute__((always_inline)) inline
+#define FORCE_INLINE __attribute__((always_inline)) inline
 #endif
 #define FORCE_NOINLINE __attribute__((noinline))
 #define GCC_PACK(n) __attribute__((packed,aligned(n)))

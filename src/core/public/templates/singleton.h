@@ -10,41 +10,41 @@ template<class T>
 class Singleton
 {
 public:
-	
-	/// @brief Default-constructor
-	FORCE_INLINE Singleton() = default;
 
-	/// @brief Copy-constructor, removed
-	Singleton(const Singleton & s) = delete;
+    /// @brief Default-constructor
+    FORCE_INLINE Singleton() = default;
 
-	/// @brief Assignment-operator, removed
-	Singleton & operator=(const Singleton & s) = delete;
+    /// @brief Copy-constructor, removed
+    Singleton(const Singleton &s) = delete;
 
-	/**
-	 * @brief Get instance reference
-	 * 
-	 * @return Reference to instance
-	 */
-	static FORCE_INLINE T & get();
+    /// @brief Assignment-operator, removed
+    Singleton &operator=(const Singleton &s) = delete;
 
-	/**
-	 * @brief Get instance pointer
-	 * 
-	 * @return Pointer to instance
-	 */
-	static FORCE_INLINE T * getPtr();
+    /**
+     * @brief Get instance reference
+     *
+     * @return Reference to instance
+     */
+    static FORCE_INLINE T &get();
+
+    /**
+     * @brief Get instance pointer
+     *
+     * @return Pointer to instance
+     */
+    static FORCE_INLINE T *getPtr();
 };
 
 template<class T>
-T & Singleton<T>::get()
+T &Singleton<T>::get()
 {
-	// Return global instance
-	static T instance;
-	return instance;
+    // Return global instance
+    static T instance;
+    return instance;
 }
 
 template<class T>
-T * Singleton<T>::getPtr()
+T *Singleton<T>::getPtr()
 {
-	return &get();
+    return &get();
 }
