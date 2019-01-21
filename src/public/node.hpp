@@ -65,10 +65,10 @@ public:
         if (rank == 0) {
             dataset = loadDataset();
             sendCounts = getDataSplits(dataset.size(), commSize);
+            for (int &sendCount : sendCounts) sendCount *= sizeof(Point<float32>);
         }
 
         // Tell each node how many bytes it will receive in the next Scatterv operation
-        for (int &sendCount : sendCounts) sendCount *= sizeof(Point<float32>);
         MPI_Scatter(sendCounts.data(), 1, MPI_INT, receiveCount, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
         // Prepare Scatterv
@@ -120,7 +120,7 @@ public:
         // TODO dynamic[points / numthreads] vs static
         #pragma omp parallel for schedule(static) private(minDist, dist, cluster)
         for (int32 pIndex = 0; pIndex < points.size(); pIndex++) {
-            Point<float32> p = points[pIndex];
+            Point<float32>& p = points[pIndex];
             minDist = p.getDistance(centroids[0]);
             cluster = 0;
 
