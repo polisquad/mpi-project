@@ -6,6 +6,7 @@
 #include <iostream>
 #include <math.h>
 
+constexpr float32 Epsilon = 1e-5;
 
 /**
 * @struct Point point.h
@@ -32,12 +33,12 @@ struct Point {
 
     /// @brief Compare points
     /// @{
-    bool operator==(const Point<T>& p) {
-        return fabsf(x - p.x) <= (FLT_EPSILON * 2.f) & fabsf(y - p.y) <= (FLT_EPSILON * 2.f);
+    bool operator==(const Point<T>& p) const {
+        return fabsf(x - p.x) < Epsilon & fabsf(y - p.y) < Epsilon;
     }
 
-    bool operator!=(const Point<T>& p) {
-        return fabsf(x - p.x) > (FLT_EPSILON * 2.f) | fabsf(y - p.y) > (FLT_EPSILON * 2.f);
+    bool operator!=(const Point<T>& p) const {
+        return !(*this == p);
     }
     /// @}
 
@@ -76,6 +77,7 @@ struct Point {
         x /= p.x, y /= p.y;
         return *this;
     }
+
     /// @}
 
     /**

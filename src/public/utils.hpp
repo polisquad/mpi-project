@@ -12,6 +12,7 @@
 
 void writeDatasetToFile(const std::vector<Point<float32>> &dataset, const char *fileName = "../data/in.csv") {
     FILE *fp = fopen(fileName, "w");
+    if (!fp) throw std::invalid_argument("input file not valid");
 
     for (auto &p: dataset)
         fprintf(fp, "%f,%f,0\n", p.x, p.y);
@@ -63,7 +64,7 @@ std::vector<Point<float32>> generateDummyDataset(const uint64 datasetSize = 1024
 uint64 randomNextInt(uint64 max) {
     std::default_random_engine generator;
     generator.seed(std::random_device()());
-    std::uniform_int_distribution<uint64> distribution(0, max-1);
+    std::uniform_int_distribution<uint64> distribution(0, max - 1);
     return distribution(generator);
 }
 
