@@ -9,6 +9,7 @@
 #include <utils.hpp>
 #include <algorithm>
 #include <omp.h>
+#include <chrono>
 
 // Reduce(sum) vectors of points
 #pragma omp declare reduction(reducePointVectors : std::vector<Point<float32>> : \
@@ -27,15 +28,21 @@
 
 // TODO
 // -> separate interface
-// -> set some fields and avoid calling .size() on vectors every time
-// -> Loss?
 class Node {
 private:
     int32 rank;
     int32 commSize;
     uint64 k;
     bool converged;
+    float32 tolerance;
+    bool verbose;
 
+    // Loss <-- distortion measure
+    float32 localLoss = 0.0;
+    float32 loss = 0.0;
+
+    std::vector<Point<float32>> dataset;
+    int32 dataPointSize;
     std::vector<Point<float32>> points;
 
     std::vector<Point<float32>> centroids;
@@ -43,23 +50,18 @@ private:
 
     std::vector<int32> localMemberships;
     std::vector<int32> memberships;
-    std::vector<Point<float32>> dataset;
 
-    int32 receiveCount[1];
+    int32 receiveCount;
     std::vector<int32> displacements;
     std::vector<int32> sendCounts;
-
-    int32 dataPointSize;
-
-    // TODO
-    float32 localLoss;
-    float32 loss;
 
 public:
     Node() = delete;
 
-    explicit Node(uint64 k) : dataPointSize(sizeof(Point<float32>)), converged(false),
-                              k(k), centroids(k), localCentroids(k) {
+    explicit Node(uint64 k, float32 tol=1e-4, bool verbose=false) :
+        dataPointSize(sizeof(Point<float32>)), converged(false),
+        k(k), centroids(k), localCentroids(k), tolerance(tol), verbose(verbose)
+    {
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         MPI_Comm_size(MPI_COMM_WORLD, &commSize);
     }
@@ -72,7 +74,7 @@ public:
         }
 
         // Tell each node how many bytes it will receive in the next Scatterv operation
-        MPI_Scatter(sendCounts.data(), 1, MPI_INT, receiveCount, 1, MPI_INT, 0, MPI_COMM_WORLD);
+        MPI_Scatter(sendCounts.data(), 1, MPI_INT, &receiveCount, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
         // Prepare Scatterv
         if (rank == 0) {
@@ -82,11 +84,11 @@ public:
                 displacements[i] = displacements[i - 1] + sendCounts[i - 1];
             }
         }
-        points = std::vector<Point<float32>>(static_cast<uint64>((receiveCount[0] / dataPointSize)));
+        points = std::vector<Point<float32>>(static_cast<uint64>((receiveCount / dataPointSize)));
 
         // Scatter points among nodes
         MPI_Scatterv(dataset.data(), sendCounts.data(), displacements.data(), MPI_BYTE,
-                     points.data(), receiveCount[0] * dataPointSize, MPI_BYTE, 0, MPI_COMM_WORLD);
+                     points.data(), receiveCount * dataPointSize, MPI_BYTE, 0, MPI_COMM_WORLD);
 
         localMemberships = std::vector<int32>(points.size(), 0);
     }
@@ -101,18 +103,23 @@ public:
         }
     }
 
-    void receiveGlobalCentroids() {
+    void receiveGlobal(int32 epoch) {
         std::vector<Point<float32>> oldCentroids;
+        float32 oldLoss;
 
         if (rank != 0) {
             oldCentroids = std::vector<Point<float32>>(centroids);
+            oldLoss = loss;
         }
 
-        MPI_Bcast(centroids.data(), static_cast<int>(k * dataPointSize),
-                  MPI_BYTE, 0, MPI_COMM_WORLD);
+        MPI_Bcast(centroids.data(), static_cast<int>(k * dataPointSize), MPI_BYTE, 0, MPI_COMM_WORLD);
 
-        if (rank != 0) {
-            converged = checkConvergence(oldCentroids, centroids);
+        if (epoch > 0) {
+            MPI_Bcast(&loss, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
+        }
+
+        if (rank != 0 && epoch > 0) {
+            converged = checkConvergence(oldLoss, loss);
         }
     }
 
@@ -121,7 +128,7 @@ public:
         float32 dist;
         int32 cluster;
 
-        // TODO dynamic[points / numthreads] vs static
+        // TODO dynamic with different chunk sizes vs static
         #pragma omp parallel for schedule(static) private(minDist, dist, cluster)
         for (int32 pIndex = 0; pIndex < points.size(); pIndex++) {
             Point<float32>& p = points[pIndex];
@@ -142,6 +149,7 @@ public:
     void optimizeLocalCentroids() {
         std::vector<Point<float32>> newLocalCentroids(k, {0, 0});
         std::vector<int32> numPointsPerCentroid(k, 0);
+        float32 newLocalLoss = 0;
         int32 cluster;
 
 //         //TODO benchmark
@@ -158,7 +166,7 @@ public:
 
         // no lock overhead but reductions
         // TODO benchmark
-        // TODO dynamic vs static
+        // TODO dynamic with different chunk sizes vs static
         #pragma omp parallel for schedule(static) private(cluster) \
                 reduction(reducePointVectors : newLocalCentroids) \
                 reduction(reduceIntVectors : numPointsPerCentroid)
@@ -166,24 +174,42 @@ public:
             cluster = localMemberships[pIndex];
             newLocalCentroids[cluster] += points[pIndex];
             numPointsPerCentroid[cluster] += 1;
-            
         }
 
+        // using a parallel for here is not worth unless there is a high number of clusters,
+        // maybe add it with a if(k>x) clause?
         for (int cIndex = 0; cIndex < k; cIndex++) {
             if (numPointsPerCentroid[cIndex] != 0) {
                 newLocalCentroids[cIndex] = newLocalCentroids[cIndex] / numPointsPerCentroid[cIndex];
             }
         }
+
+        #pragma omp parallel for schedule(static) private(cluster) \
+                reduction(+: newLocalLoss)
+        for (int32 pIndex = 0; pIndex < points.size(); pIndex++) {
+            cluster = localMemberships[pIndex];
+            newLocalLoss += points[pIndex].getSquaredDistance(newLocalCentroids[cluster]);
+        }
+
         localCentroids = std::vector<Point<float32>>(newLocalCentroids);
+        localLoss = newLocalLoss;
     }
 
-    void updateGlobalCentroids() {
-        std::vector<Point<float32>> gatherLocalCentroids(commSize * k);
+    void updateGlobal(int32 epoch) {
+        std::vector<Point<float32>> gatherLocalCentroids;
         int32 count = static_cast<int32>(k * dataPointSize);
+        float32 newLoss;
+
+        if (rank == 0) {
+            gatherLocalCentroids = std::vector<Point<float32>>(commSize * k);
+        }
 
         // Gather local centroids
         MPI_Gather(localCentroids.data(), count, MPI_BYTE,
                    gatherLocalCentroids.data(), count, MPI_BYTE, 0, MPI_COMM_WORLD);
+
+        // Gather local losses
+        MPI_Reduce(&localLoss, &newLoss, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
 
         if (rank == 0) {
             std::vector<Point<float32>> newCentroids(k, {0, 0});
@@ -195,22 +221,33 @@ public:
             for (int32 i = 0; i < k; i++) {
                 newCentroids[i] /= commSize;
             }
-            converged = checkConvergence(centroids, newCentroids);
+
+            newLoss /= commSize;
+
+            converged = checkConvergence(loss, newLoss);
             centroids = newCentroids;
+            loss = newLoss;
+
+            if (verbose) {
+                printf("Completed epoch %d. Loss: %f\n", epoch, loss);
+                if (converged) {
+                    printf("K-means algorithm took %d epochs to converge\n", epoch);
+
+                }
+            }
         }
     }
 
     void finalize() {
         if (rank == 0) {
             memberships = std::vector<int32>(dataset.size(), 0);
-        }
-
-        for (int &displacement : displacements) {
-            displacement /= dataPointSize;
+            for (int &displacement : displacements) {
+                displacement /= dataPointSize;
+            }
         }
 
         // Gather local memberships [Optional: root could aswell calculate all the memberships]
-        MPI_Gatherv(localMemberships.data(), receiveCount[0] / dataPointSize , MPI_INT,
+        MPI_Gatherv(localMemberships.data(), receiveCount / dataPointSize , MPI_INT,
                     memberships.data(), sendCounts.data(), displacements.data(), MPI_INT, 0, MPI_COMM_WORLD);
     }
 
@@ -220,14 +257,8 @@ public:
         }
     }
 
-    bool checkConvergence(const std::vector<Point<float32>>& oldCentroids,
-                          const std::vector<Point<float32>>& newCentroids) const {
-        for (int32 i = 0; i < k; i++) {
-            if (newCentroids[i] != oldCentroids[i]) {
-                return false;
-            }
-        }
-        return true;
+    bool checkConvergence(float32 oldLoss, float32 newLoss) const {
+        return std::fabs(oldLoss - newLoss) <= tolerance;
     }
 
     bool hasConverged() const {

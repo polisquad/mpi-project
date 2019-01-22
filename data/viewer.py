@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import os
 
 data_path = os.path.dirname(os.path.realpath(__file__))
-# in_file = os.path.join(data_path, "in.csv")
+in_file = os.path.join(data_path, "in.csv")
 out_file = os.path.join(data_path, "out.csv")
 
 
@@ -23,7 +23,7 @@ def parse_2d(file=out_file):
 
 
 def plot2d(x1s, x2s, colors):
-    plt.scatter(x1s, x2s, c=colors, marker=".")
+    plt.scatter(x1s, x2s, s=[50 for _ in range(len(x1s))], c=colors, marker="o")
     plt.show()
 
 
