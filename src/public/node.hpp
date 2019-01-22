@@ -49,6 +49,8 @@ private:
     std::vector<int32> displacements;
     std::vector<int32> sendCounts;
 
+    int32 dataPointSize;
+
     // TODO
     float32 localLoss;
     float32 loss;
@@ -56,7 +58,8 @@ private:
 public:
     Node() = delete;
 
-    explicit Node(uint64 k) : converged(false), k(k), centroids(k), localCentroids(k) {
+    explicit Node(uint64 k) : dataPointSize(sizeof(Point<float32>)), converged(false),
+                              k(k), centroids(k), localCentroids(k) {
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         MPI_Comm_size(MPI_COMM_WORLD, &commSize);
     }
@@ -65,7 +68,7 @@ public:
         if (rank == 0) {
             dataset = loadDataset();
             sendCounts = getDataSplits(dataset.size(), commSize);
-            for (int &sendCount : sendCounts) sendCount *= sizeof(Point<float32>);
+            for (int &sendCount : sendCounts) sendCount *= dataPointSize;
         }
 
         // Tell each node how many bytes it will receive in the next Scatterv operation
@@ -79,11 +82,11 @@ public:
                 displacements[i] = displacements[i - 1] + sendCounts[i - 1];
             }
         }
-        points = std::vector<Point<float32>>(static_cast<uint64>((receiveCount[0] / sizeof(Point<float32>))));
+        points = std::vector<Point<float32>>(static_cast<uint64>((receiveCount[0] / dataPointSize)));
 
         // Scatter points among nodes
         MPI_Scatterv(dataset.data(), sendCounts.data(), displacements.data(), MPI_BYTE,
-                     points.data(), receiveCount[0] * sizeof(Point<float32>), MPI_BYTE, 0, MPI_COMM_WORLD);
+                     points.data(), receiveCount[0] * dataPointSize, MPI_BYTE, 0, MPI_COMM_WORLD);
 
         localMemberships = std::vector<int32>(points.size(), 0);
     }
@@ -91,8 +94,9 @@ public:
 
     void selectRandomCentroids() {
         if (rank == 0) {
+            uint64 numPoints = points.size();
             for (auto &centroid : centroids) {
-                centroid = points[randomNextInt(points.size())];
+                centroid = points[randomNextInt(numPoints)];
             }
         }
     }
@@ -104,7 +108,7 @@ public:
             oldCentroids = std::vector<Point<float32>>(centroids);
         }
 
-        MPI_Bcast(centroids.data(), static_cast<int>(centroids.size() * sizeof(Point<float32>)),
+        MPI_Bcast(centroids.data(), static_cast<int>(k * dataPointSize),
                   MPI_BYTE, 0, MPI_COMM_WORLD);
 
         if (rank != 0) {
@@ -124,7 +128,7 @@ public:
             minDist = p.getDistance(centroids[0]);
             cluster = 0;
 
-            for (int32 cIndex = 1; cIndex < centroids.size(); cIndex++) {
+            for (int32 cIndex = 1; cIndex < k; cIndex++) {
                 dist = p.getDistance(centroids[cIndex]);
                 if (dist < minDist) {
                     minDist = dist;
@@ -136,8 +140,8 @@ public:
     }
 
     void optimizeLocalCentroids() {
-        std::vector<Point<float32>> newLocalCentroids(localCentroids.size(), {0, 0});
-        std::vector<int32> numPointsPerCentroid(localCentroids.size(), 0);
+        std::vector<Point<float32>> newLocalCentroids(k, {0, 0});
+        std::vector<int32> numPointsPerCentroid(k, 0);
         int32 cluster;
 
 //         //TODO benchmark
@@ -162,9 +166,10 @@ public:
             cluster = localMemberships[pIndex];
             newLocalCentroids[cluster] += points[pIndex];
             numPointsPerCentroid[cluster] += 1;
+            
         }
 
-        for (int cIndex = 0; cIndex < newLocalCentroids.size(); cIndex++) {
+        for (int cIndex = 0; cIndex < k; cIndex++) {
             if (numPointsPerCentroid[cIndex] != 0) {
                 newLocalCentroids[cIndex] = newLocalCentroids[cIndex] / numPointsPerCentroid[cIndex];
             }
@@ -173,21 +178,21 @@ public:
     }
 
     void updateGlobalCentroids() {
-        std::vector<Point<float32>> gatherLocalCentroids(commSize * centroids.size());
-        int32 count = static_cast<int32>(localCentroids.size() * sizeof(Point<float32>));
+        std::vector<Point<float32>> gatherLocalCentroids(commSize * k);
+        int32 count = static_cast<int32>(k * dataPointSize);
 
         // Gather local centroids
         MPI_Gather(localCentroids.data(), count, MPI_BYTE,
                    gatherLocalCentroids.data(), count, MPI_BYTE, 0, MPI_COMM_WORLD);
 
         if (rank == 0) {
-            std::vector<Point<float32>> newCentroids(centroids.size(), {0, 0});
+            std::vector<Point<float32>> newCentroids(k, {0, 0});
 
             for (int32 i = 0; i < gatherLocalCentroids.size(); i++) {
-                newCentroids[i % centroids.size()] += gatherLocalCentroids[i];
+                newCentroids[i % k] += gatherLocalCentroids[i];
             }
 
-            for (int32 i = 0; i < centroids.size(); i++) {
+            for (int32 i = 0; i < k; i++) {
                 newCentroids[i] /= commSize;
             }
             converged = checkConvergence(centroids, newCentroids);
@@ -201,11 +206,11 @@ public:
         }
 
         for (int &displacement : displacements) {
-            displacement /= sizeof(Point<float32>);
+            displacement /= dataPointSize;
         }
 
         // Gather local memberships [Optional: root could aswell calculate all the memberships]
-        MPI_Gatherv(localMemberships.data(), receiveCount[0] / sizeof(Point<float32>) , MPI_INT,
+        MPI_Gatherv(localMemberships.data(), receiveCount[0] / dataPointSize , MPI_INT,
                     memberships.data(), sendCounts.data(), displacements.data(), MPI_INT, 0, MPI_COMM_WORLD);
     }
 
@@ -217,7 +222,7 @@ public:
 
     bool checkConvergence(const std::vector<Point<float32>>& oldCentroids,
                           const std::vector<Point<float32>>& newCentroids) const {
-        for (int32 i = 0; i < oldCentroids.size(); i++) {
+        for (int32 i = 0; i < k; i++) {
             if (newCentroids[i] != oldCentroids[i]) {
                 return false;
             }
