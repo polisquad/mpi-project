@@ -1,2 +1,2 @@
 # Include modules -------------------------------
-add_subdirectory(core)
+add_subdirectory(kmeans)

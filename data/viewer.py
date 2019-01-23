@@ -2,7 +2,7 @@ import os
 import matplotlib.pyplot as plt
 
 data_path = os.path.dirname(os.path.realpath(__file__))
-in_file = os.path.join(data_path, "in.csv")
+in_file = os.path.join(data_path, "target.csv")
 out_file = os.path.join(data_path, "out.csv")
 
 
@@ -29,5 +29,7 @@ def plot2d(x1s, x2s, colors):
     plt.show()
 
 
-x1s, x2s, colors = parse_2d(file=out_file)
-plot2d(x1s, x2s, colors)
+#x1s, x2s, xcolors = parse_2d(file=in_file)
+y1s, y2s, ycolors = parse_2d(file=out_file)
+#plot2d(x1s, x2s, xcolors)
+plot2d(y1s, y2s, ycolors)
