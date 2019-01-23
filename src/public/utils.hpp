@@ -20,7 +20,7 @@ void writeDatasetToFile(const std::vector<Point<float32>> &dataset, const char *
     fclose(fp);
 }
 
-void writeResultsToFile(const std::vector<int32>& memberships,
+void writeResultsToFile(const std::vector<uint64>& memberships,
                         const char *in = "../data/in.csv",
                         const char *out = "../data/out.csv") {
     FILE *fp = fopen(in, "r");
@@ -32,7 +32,7 @@ void writeResultsToFile(const std::vector<int32>& memberships,
     float32 x, y;
     uint64 processed = 0;
     while (fscanf(fp, "%f,%f,%*f", &x, &y) > 0) {
-        fprintf(fp_out, "%f,%f,%d\n", x, y, memberships[processed]);
+        fprintf(fp_out, "%f,%f,%llu\n", x, y, memberships[processed]);
         processed++;
     }
 

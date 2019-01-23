@@ -1,18 +1,17 @@
-
 #include <node.hpp>
+#include <chrono>
 
 int main(int argc, char **argv) {
     // TODO
     // -> generalize types(both float32 and float64)
     // -> generalize to n-dimensional data point
     // -> benchmark in LAN with and without -03
-
     MPI_Init(&argc, &argv);
 
     // TODO
     // these are read from command line args
-    uint64 k = 5;
-    int32 maxNumEpochs = 500;
+    uint32 k = 5;
+    uint32 maxNumEpochs = 300;
     float32 tol = 1e-4;
     bool verbose = true;
 
@@ -27,7 +26,7 @@ int main(int argc, char **argv) {
     // Set initial centroids
     thisNode.selectRandomCentroids();
 
-    int32 epoch = 0;
+    uint32 epoch = 0;
 
     for (epoch = 0; epoch < maxNumEpochs; epoch++) {
 
@@ -36,7 +35,7 @@ int main(int argc, char **argv) {
 
         // Check convergence
         if (thisNode.hasConverged()) {
-            break;
+             break;
         }
 
         // Compute memberships of each point
@@ -53,5 +52,6 @@ int main(int argc, char **argv) {
     thisNode.writeResults();
 
     MPI_Finalize();
+
     return 0;
 }

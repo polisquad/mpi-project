@@ -32,7 +32,7 @@ class Node {
 private:
     int32 rank;
     int32 commSize;
-    uint64 k;
+    uint32 k;
     bool converged;
     float32 tolerance;
     bool verbose;
@@ -42,14 +42,14 @@ private:
     float32 loss = 0.0;
 
     std::vector<Point<float32>> dataset;
-    int32 dataPointSize;
+    uint64 dataPointSize;
     std::vector<Point<float32>> points;
 
     std::vector<Point<float32>> centroids;
     std::vector<Point<float32>> localCentroids;
 
-    std::vector<int32> localMemberships;
-    std::vector<int32> memberships;
+    std::vector<uint64> localMemberships;
+    std::vector<uint64> memberships;
 
     int32 receiveCount;
     std::vector<int32> displacements;
@@ -58,7 +58,7 @@ private:
 public:
     Node() = delete;
 
-    explicit Node(uint64 k, float32 tol=1e-4, bool verbose=false) :
+    explicit Node(uint32 k, float32 tol=1e-4, bool verbose=false) :
         dataPointSize(sizeof(Point<float32>)), converged(false),
         k(k), centroids(k), localCentroids(k), tolerance(tol), verbose(verbose)
     {
@@ -70,7 +70,7 @@ public:
         if (rank == 0) {
             dataset = loadDataset();
             sendCounts = getDataSplits(dataset.size(), commSize);
-            for (int &sendCount : sendCounts) sendCount *= dataPointSize;
+            for (int32 &sendCount : sendCounts) sendCount *= dataPointSize;
         }
 
         // Tell each node how many bytes it will receive in the next Scatterv operation
@@ -80,7 +80,7 @@ public:
         if (rank == 0) {
             displacements = std::vector<int32>(static_cast<uint64>(commSize));
             displacements[0] = 0;
-            for (int32 i = 1; i < commSize; i++) {
+            for (uint64 i = 1; i < commSize; i++) {
                 displacements[i] = displacements[i - 1] + sendCounts[i - 1];
             }
         }
@@ -88,9 +88,9 @@ public:
 
         // Scatter points among nodes
         MPI_Scatterv(dataset.data(), sendCounts.data(), displacements.data(), MPI_BYTE,
-                     points.data(), receiveCount * dataPointSize, MPI_BYTE, 0, MPI_COMM_WORLD);
+                     points.data(), static_cast<int32>(receiveCount * dataPointSize), MPI_BYTE, 0, MPI_COMM_WORLD);
 
-        localMemberships = std::vector<int32>(points.size(), 0);
+        localMemberships = std::vector<uint64>(points.size(), 0);
     }
 
 
@@ -103,7 +103,7 @@ public:
         }
     }
 
-    void receiveGlobal(int32 epoch) {
+    void receiveGlobal(uint32 epoch) {
         std::vector<Point<float32>> oldCentroids;
         float32 oldLoss;
 
@@ -112,7 +112,7 @@ public:
             oldLoss = loss;
         }
 
-        MPI_Bcast(centroids.data(), static_cast<int>(k * dataPointSize), MPI_BYTE, 0, MPI_COMM_WORLD);
+        MPI_Bcast(centroids.data(), static_cast<int32>(k * dataPointSize), MPI_BYTE, 0, MPI_COMM_WORLD);
 
         if (epoch > 0) {
             MPI_Bcast(&loss, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
@@ -126,16 +126,16 @@ public:
     void optimizeMemberships() {
         float32 minDist;
         float32 dist;
-        int32 cluster;
+        uint64 cluster;
 
         // TODO dynamic with different chunk sizes vs static
         #pragma omp parallel for schedule(static) private(minDist, dist, cluster)
-        for (int32 pIndex = 0; pIndex < points.size(); pIndex++) {
-            Point<float32>& p = points[pIndex];
+        for (uint64 pIndex = 0; pIndex < points.size(); pIndex++) {
+            const Point<float32>& p = points[pIndex];
             minDist = p.getDistance(centroids[0]);
             cluster = 0;
 
-            for (int32 cIndex = 1; cIndex < k; cIndex++) {
+            for (uint64 cIndex = 1; cIndex < k; cIndex++) {
                 dist = p.getDistance(centroids[cIndex]);
                 if (dist < minDist) {
                     minDist = dist;
@@ -150,9 +150,9 @@ public:
         std::vector<Point<float32>> newLocalCentroids(k, {0, 0});
         std::vector<int32> numPointsPerCentroid(k, 0);
         float32 newLocalLoss = 0;
-        int32 cluster;
+        uint64 cluster;
 
-//         //TODO benchmark
+//        // this is slow
 //        #pragma omp parallel for schedule(static) private(cluster)
 //        for (int32 pIndex = 0; pIndex < points.size(); pIndex++) {
 //            cluster = localMemberships[pIndex];
@@ -165,12 +165,11 @@ public:
 //        }
 
         // no lock overhead but reductions
-        // TODO benchmark
         // TODO dynamic with different chunk sizes vs static
         #pragma omp parallel for schedule(static) private(cluster) \
                 reduction(reducePointVectors : newLocalCentroids) \
                 reduction(reduceIntVectors : numPointsPerCentroid)
-        for (int32 pIndex = 0; pIndex < points.size(); pIndex++) {
+        for (uint64 pIndex = 0; pIndex < points.size(); pIndex++) {
             cluster = localMemberships[pIndex];
             newLocalCentroids[cluster] += points[pIndex];
             numPointsPerCentroid[cluster] += 1;
@@ -178,7 +177,8 @@ public:
 
         // using a parallel for here is not worth unless there is a high number of clusters,
         // maybe add it with a if(k>x) clause?
-        for (int cIndex = 0; cIndex < k; cIndex++) {
+        // #pragma omp parallel for schedule(static)
+        for (uint64 cIndex = 0; cIndex < k; cIndex++) {
             if (numPointsPerCentroid[cIndex] != 0) {
                 newLocalCentroids[cIndex] = newLocalCentroids[cIndex] / numPointsPerCentroid[cIndex];
             }
@@ -186,7 +186,7 @@ public:
 
         #pragma omp parallel for schedule(static) private(cluster) \
                 reduction(+: newLocalLoss)
-        for (int32 pIndex = 0; pIndex < points.size(); pIndex++) {
+        for (uint64 pIndex = 0; pIndex < points.size(); pIndex++) {
             cluster = localMemberships[pIndex];
             newLocalLoss += points[pIndex].getSquaredDistance(newLocalCentroids[cluster]);
         }
@@ -195,7 +195,7 @@ public:
         localLoss = newLocalLoss;
     }
 
-    void updateGlobal(int32 epoch) {
+    void updateGlobal(uint32 epoch) {
         std::vector<Point<float32>> gatherLocalCentroids;
         int32 count = static_cast<int32>(k * dataPointSize);
         float32 newLoss;
@@ -214,11 +214,14 @@ public:
         if (rank == 0) {
             std::vector<Point<float32>> newCentroids(k, {0, 0});
 
-            for (int32 i = 0; i < gatherLocalCentroids.size(); i++) {
+            // #pragma omp parallel for schedule(static) \
+            reduction(reducePointVectors : newCentroids)
+            for (uint64 i = 0; i < gatherLocalCentroids.size(); i++) {
                 newCentroids[i % k] += gatherLocalCentroids[i];
             }
 
-            for (int32 i = 0; i < k; i++) {
+            // #pragma omp parallel for schedule(static)
+            for (uint64 i = 0; i < k; i++) {
                 newCentroids[i] /= commSize;
             }
 
@@ -229,9 +232,9 @@ public:
             loss = newLoss;
 
             if (verbose) {
-                printf("Completed epoch %d. Loss: %f\n", epoch, loss);
+                printf("Completed epoch %u. Loss: %f\n", epoch, loss);
                 if (converged) {
-                    printf("K-means algorithm took %d epochs to converge\n", epoch);
+                    printf("K-means algorithm took %u epochs to converge\n", epoch);
 
                 }
             }
@@ -240,15 +243,16 @@ public:
 
     void finalize() {
         if (rank == 0) {
-            memberships = std::vector<int32>(dataset.size(), 0);
+            memberships = std::vector<uint64>(dataset.size(), 0);
             for (int &displacement : displacements) {
                 displacement /= dataPointSize;
             }
         }
 
         // Gather local memberships [Optional: root could aswell calculate all the memberships]
-        MPI_Gatherv(localMemberships.data(), receiveCount / dataPointSize , MPI_INT,
-                    memberships.data(), sendCounts.data(), displacements.data(), MPI_INT, 0, MPI_COMM_WORLD);
+        MPI_Gatherv(localMemberships.data(), static_cast<int32>(receiveCount / dataPointSize), MPI_UNSIGNED_LONG_LONG,
+                    memberships.data(), sendCounts.data(), displacements.data(), MPI_UNSIGNED_LONG_LONG,
+                    0, MPI_COMM_WORLD);
     }
 
     void writeResults() const {
