@@ -60,11 +60,11 @@ namespace MPI
 		/// Send algorithms
 		/// @{
 		
-		/// Sends a trivial payload to dest
+		/// Sends a trivial object to dest
 		template<typename T>
-		FORCE_INLINE bool send(typename ConstRef<T>::Type payload, int32 dest, int32 tag)
+		FORCE_INLINE bool send(typename ConstRef<T>::Type obj, int32 dest, int32 tag)
 		{
-			int32 status = MPI_Send(&payload, sizeof(T), MPI_BYTE, dest, tag, communicator);
+			tryStatus(MPI_Send(&obj, sizeof(T), MPI_BYTE, dest, tag, communicator), status)
 
 			if (status == MPI_SUCCESS)
 			{
@@ -76,13 +76,13 @@ namespace MPI
 			return false;
 		}
 		template<typename T>
-		FORCE_INLINE bool send(typename ConstRef<T>::Type payload, int32 dest) { return send(payload, dest, numSent); }
+		FORCE_INLINE bool send(typename ConstRef<T>::Type obj, int32 dest) { return send(obj, dest, numSent); }
 
 		/// Sends a static buffer to dest
 		template<typename T>
 		FORCE_INLINE bool send(const T * buffer, uint32 count, int32 dest, int32 tag)
 		{
-			int32 status = MPI_Send(buffer, count * sizeof(T), MPI_BYTE, dest, tag, communicator);
+			tryStatus(MPI_Send(buffer, count * sizeof(T), MPI_BYTE, dest, tag, communicator), status)
 
 			if (status == MPI_SUCCESS)
 			{
@@ -98,9 +98,9 @@ namespace MPI
 
 		/// Broadcast a trivial payload to all hosts listening on communicator
 		template<typename T>
-		FORCE_INLINE bool broadcast(typename ConstRef<T>::Type payload, uint32 count)
+		FORCE_INLINE bool broadcast(typename ConstRef<T>::Type obj)
 		{
-			int32 status = MPI_Bcast(payload, sizeof(T), MPI_BYTE, id, communicator);
+			tryStatus( MPI_Bcast((T*)&obj, sizeof(T), MPI_BYTE, id, communicator), status)
 
 			if (status == MPI_SUCCESS)
 			{
@@ -116,12 +116,12 @@ namespace MPI
 		template<typename T>
 		FORCE_INLINE bool broadcast(const T * buffer, uint32 count)
 		{
-			int32 status = MPI_Bcast((T*)buffer, count * sizeof(T), MPI_BYTE, id, communicator);
+			tryStatus(MPI_Bcast((T*)buffer, count * sizeof(T), MPI_BYTE, id, communicator), status)
 
 			if (status == MPI_SUCCESS)
 			{
 				// Increment number of messages sent
-				++numSent;
+				numSent += getCommSize();
 				return true;
 			}
 
@@ -138,7 +138,7 @@ namespace MPI
 		FORCE_INLINE bool receive(T * buffer, uint32 count, int32 src, int32 tag)
 		{
 			MPI_Status _;
-			int32 status = MPI_Recv(buffer, count * sizeof(T), MPI_BYTE, src, tag, communicator, &_);
+			tryStatus(MPI_Recv(buffer, count * sizeof(T), MPI_BYTE, src, tag, communicator, &_), status)
 
 			if (status == MPI_SUCCESS)
 			{
@@ -152,11 +152,27 @@ namespace MPI
 		template<typename T>
 		FORCE_INLINE bool receive(T * buffer, uint32 count, int32 src) { return receive(buffer, count, src, numReceived); }
 
-		// Receives a static buffer broadcast
+		/// Receives a trivial object broadcast
+		template<typename T>
+		FORCE_INLINE bool receiveBroadcast(T & obj, uint32 root = 0)
+		{
+			tryStatus(MPI_Bcast(&obj, sizeof(T), MPI_BYTE, root, communicator), status)
+
+			if (status == MPI_SUCCESS)
+			{
+				// Increment number of messages sent
+				++numReceived;
+				return true;
+			}
+
+			return false;
+		}
+
+		/// Receives a static buffer broadcast
 		template<typename T>
 		FORCE_INLINE bool receiveBroadcast(T * buffer, uint32 count, uint32 root = 0)
 		{
-			int32 status = MPI_Bcast(buffer, count * sizeof(T), MPI_BYTE, root, communicator);
+			tryStatus(MPI_Bcast(buffer, count * sizeof(T), MPI_BYTE, root, communicator), status)
 
 			if (status == MPI_SUCCESS)
 			{
@@ -168,6 +184,27 @@ namespace MPI
 			return false;
 		}
 		/// @}
+
+		/// Multi-broadcast method
+		/// Every node sends its data, data is collected
+		/// and redistributed
+		/// @see http://mpitutorial.com/tutorials/mpi-scatter-gather-and-allgather/
+		template<typename T>
+		FORCE_INLINE bool allgather(const T * sendBuffer, uint32 sendCount, T * receiveBuffer, uint32 receiveCount)
+		{
+			tryStatus(MPI_Allgather(sendBuffer, sendCount * sizeof(T), MPI_BYTE, receiveBuffer, receiveCount * sizeof(T), MPI_BYTE, communicator), status)
+
+			if (status == MPI_SUCCESS)
+			{
+				// Increment number of messages sent
+				const uint32 commSize = getCommSize();
+				numSent		+= commSize;
+				numReceived	+= commSize;
+				return true;
+			}
+
+			return false;
+		}
 	};
 
 	/// Device reference type

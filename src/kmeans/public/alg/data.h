@@ -13,7 +13,8 @@
  * basic arithmetic methods (operator+,
  * operator*) and a @c getDistance()
  * method that returns the distance
- * between two data points
+ * between two data points. T should
+ * be default constructible
  */
 template<typename T>
 class Cluster
@@ -33,8 +34,8 @@ protected:
 
 public:
 	/// Default constructor
-	FORCE_INLINE Cluster() :
-		centroid(),
+	FORCE_INLINE Cluster(typename ConstRef<T>::Type _centroid = T()) :
+		centroid(_centroid),
 		workingCentroid(),
 		workingWeight(0.f) {}
 
@@ -249,6 +250,10 @@ public:
 	/// Scalar constructor, implicit cast
 	FORCE_INLINE Point2(T s) : buffer{s, s} {}
 
+	/// Random access operator
+	FORCE_INLINE T & operator[](uint8 i)		{ return buffer[i]; }
+	FORCE_INLINE T operator[](uint8 i) const	{ return buffer[i]; }
+
 	/// Arithmetic operators
 	/// @{
 	FORCE_INLINE Point2<T> operator+(const Point2<T> & p) const
@@ -268,7 +273,7 @@ public:
 		x += p.x, y += p.y;
 		return *this;
 	}
-	FORCE_INLINE Point2<T> & operator*(float32 s)
+	FORCE_INLINE Point2<T> & operator*=(float32 s)
 	{
 		x *= s, y *= s;
 		return *this;

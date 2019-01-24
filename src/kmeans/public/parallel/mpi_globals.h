@@ -24,16 +24,14 @@ extern bool bMPIInitialized;
 }
 
 #define tryStatus(stmt, status)\
+int32 status = stmt;\
+if (status != MPI_SUCCESS)\
 {\
-	int32 status = stmt;\
-	if (status != MPI_SUCCESS)\
-	{\
-		char __errorMessage[MPI_MAX_ERROR_STRING];\
-		MPI_Error_string(status, __errorMessage, nullptr);\
-		\
-		printf("%s\n", __errorMessage);\
-	}\
-}
+	char __errorMessage[MPI_MAX_ERROR_STRING];\
+	MPI_Error_string(status, __errorMessage, nullptr);\
+	\
+	printf("%s\n", __errorMessage);\
+}\
 
 namespace MPI
 {

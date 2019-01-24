@@ -1,5 +1,7 @@
 import os
+import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 data_path = os.path.dirname(os.path.realpath(__file__))
 in_file = os.path.join(data_path, "target.csv")

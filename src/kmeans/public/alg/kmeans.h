@@ -55,6 +55,13 @@ std::vector<Cluster<T>> genClusters(const std::vector<T> & dataPoints, uint32 nu
 {
 	std::vector<Cluster<T>> clusters;
 	MPI::DeviceRef host = MPI::getLocalDevice();
+	bool bConverges = false;
+	float32 averageDrift = 0.f;
+
+	// Convergence options
+	// @todo make this configurable, maybe a settings struct
+	const float32 convergenceFactor = 0.0625f; // Reasonable values around 0.1f
+	const uint32 maxIterations = 100;
 
 	//////////////////////////////////////////////////
 	// Clusters initialization
@@ -83,8 +90,11 @@ std::vector<Cluster<T>> genClusters(const std::vector<T> & dataPoints, uint32 nu
 	const uint32 workerId	= host->getId();
 	const uint32 numDataPoints = dataPoints.size();
 
-	for (uint32 epoch = 0; epoch < 100; ++epoch)
+	for (uint32 epoch = 0; epoch < maxIterations /* & !bConverges */; ++epoch)
 	{
+		// Save current cluster states for convergence check
+		auto prevClusters = clusters;
+
 		//////////////////////////////////////////////////
 		// Cluster aggregation
 		//////////////////////////////////////////////////
@@ -138,13 +148,15 @@ std::vector<Cluster<T>> genClusters(const std::vector<T> & dataPoints, uint32 nu
 		 *   received the update.
 		 * 
 		 * @todo time them and choose
+		 * 
+		 * The first approach is clearly faster on a single machine,
+		 * I should test this with different hosts
 		 */
 
-		#if 0
+		#if 1
 		if (host->isMaster())
 		{
 			// Receive partial updates from slaves
-			#pragma parallel for
 			for (uint32 i = 0; i < numWorkers; ++i)
 				if (i != workerId)
 				{
@@ -157,13 +169,23 @@ std::vector<Cluster<T>> genClusters(const std::vector<T> & dataPoints, uint32 nu
 				}
 			
 			// Commit updates
+			float32 maxDrift = 0.f;
 			for (uint32 k = 0; k < numClusters; ++k)
+			{
 				clusters[k].commit();
+
+				const float32 drift = clusters[k].getDistance(prevClusters[k]);
+				if (drift > maxDrift) maxDrift = drift;
+			}
+
+			// @todo How to make this relative?
+			// Update average drift
+			averageDrift = (averageDrift * epoch + maxDrift) / (epoch + 1);
+			bConverges = maxDrift <= averageDrift * convergenceFactor;
 			
 			// Broadcast results
+			host->broadcast<bool>(bConverges);
 			host->broadcast(&clusters[0], numClusters);
-
-			// @todo Check terminating condition
 		}
 		else
 		{
@@ -171,29 +193,26 @@ std::vector<Cluster<T>> genClusters(const std::vector<T> & dataPoints, uint32 nu
 			host->send(&clusters[0], numClusters, 0, epoch);
 
 			// Wait for master to reply
+			host->receiveBroadcast(bConverges, 0);
 			host->receiveBroadcast(&clusters[0], numClusters, 0);
 		}
 		#else
-		// Broadcast partial update
-		host->broadcast(&clusters[0], numClusters);
-
-		// Receive broadcasts from other nodes
-		#pragma omp parallel for
-		for (uint32 i = 0; i < numWorkers; ++i)
-			if (i != workerId)
-			{
-				// Receive broadcast from other node
-				std::vector<Cluster<T>> remoteClusters(numClusters);
-				host->receiveBroadcast(&remoteClusters[0], numClusters, i);
-
-				// Fuse clusters
-				for (uint32 k = 0; k < numClusters; ++k)
-					clusters[k].fuse(remoteClusters[k]);
-			}
+		// Gather all updates
+		std::vector<Cluster<T>> remoteClusters(numWorkers * numClusters);
+		host->allgather(&clusters[0], numClusters, &remoteClusters[0], numClusters);
 		
 		// Commit udpates
+		#pragma omp parallel for
 		for (uint32 k = 0; k < numClusters; ++k)
+		{
+			for (uint32 w = 0; w < numWorkers; ++w)
+				if (w != workerId)
+				{
+					clusters[k].fuse(remoteClusters[w * numWorkers + k]);
+				}
+
 			clusters[k].commit();
+		}
 
 		// @todo check terminating condition
 		#endif
