@@ -2,6 +2,7 @@
 
 #include "coremin.h"
 #include "data.h"
+#include "utils/command_line.h"
 #include "parallel/mpi.h"
 #include "parallel/omp.h"
 #include "parallel/threading.h"
@@ -10,10 +11,15 @@
 
 /// Partition data space in k clusters
 template<typename T>
-std::vector<std::vector<T>> clusterize(const std::vector<T> & dataPoints, uint32 numClusters)
+Array<Array<T>, alignof(T)> clusterize(const Array<T> & dataPoints, uint32 numClusters)
 {
-	std::vector<std::vector<T>> groups(numClusters);
+	Array<Array<T>, alignof(T)> groups(numClusters);
 	MPI::DeviceRef host = MPI::getLocalDevice();
+	const uint32 numDataPoints = dataPoints.getSize();
+
+	// Init groups
+	for (uint32 k = 0; k < numClusters; ++k)
+		groups.push(Array<T>(numDataPoints / numClusters + 1));
 
 	// Generate clusters
 	auto clusters = genClusters(dataPoints, numClusters);
@@ -21,7 +27,6 @@ std::vector<std::vector<T>> clusterize(const std::vector<T> & dataPoints, uint32
 	// Split points evenly between devices
 	const uint32 numWorkers	= host->getCommSize();
 	const uint32 workerId	= host->getId();
-	const uint32 numDataPoints = dataPoints.size();
 
 	// Lock for each group
 	std::vector<OMP::CriticalSection> groupLocks(numClusters);
@@ -43,7 +48,7 @@ std::vector<std::vector<T>> clusterize(const std::vector<T> & dataPoints, uint32
 		// Aggregate to nearest cluster
 		{
 			ScopeLock<OMP::CriticalSection> _(&groupLocks[nearest]);
-			groups[nearest].push_back(dataPoint);
+			groups[nearest].push(dataPoint);
 		}
 	}
 
@@ -51,46 +56,53 @@ std::vector<std::vector<T>> clusterize(const std::vector<T> & dataPoints, uint32
 }
 
 template<typename T>
-std::vector<Cluster<T>> genClusters(const std::vector<T> & dataPoints, uint32 numClusters)
+Array<Cluster<T>> genClusters(const Array<T> & dataPoints, uint32 numClusters)
 {
-	std::vector<Cluster<T>> clusters;
+	Array<Cluster<T>> clusters(numClusters);
 	MPI::DeviceRef host = MPI::getLocalDevice();
 	bool bConverges = false;
 	float32 averageDrift = 0.f;
 
 	// Convergence options
-	// @todo make this configurable, maybe a settings struct
-	const float32 convergenceFactor = 0.0625f; // Reasonable values around 0.1f
-	const uint32 maxIterations = 100;
+	// Read from command line
+	float32 convergenceFactor = 0.0625f; // Reasonable values around 0.1f
+	uint32 maxIterations = 256;
+	
+	CommandLine::get().getValue("--convergence-factor", convergenceFactor);
+	CommandLine::get().getValue("--max-iter", maxIterations);
+
+	// Split points evenly between devices
+	const uint32 numWorkers	= host->getCommSize();
+	const uint32 workerId	= host->getId();
+	const uint32 numDataPoints = dataPoints.getSize();
 
 	//////////////////////////////////////////////////
 	// Clusters initialization
 	//////////////////////////////////////////////////
 
 	/// @todo options to choose cluster initialization method
-	if (host->isMaster())
+	if (workerId == 0)
 	{
 		// Initialize clusters
 		// @todo parallel initialization?
-		clusters = Cluster<T>::initFurthest(dataPoints, numClusters);
+		std::string initMethod;
+		CommandLine::get().getValue("--init", initMethod);
+
+		if (initMethod == "random")
+			clusters = Cluster<T>::initRandom(dataPoints, numClusters);
+		else
+			clusters = Cluster<T>::initFurthest(dataPoints, numClusters);
 
 		// Send initialization to slaves
-		host->broadcast(&clusters[0], clusters.size());
+		host->broadcast(&clusters[0], numClusters);
 	}
 	else
 	{
-		clusters.resize(numClusters);
-
 		// Wait for master to initialize clusters
 		host->receiveBroadcast(&clusters[0], numClusters, 0);
 	}
 
-	// Split points evenly between devices
-	const uint32 numWorkers	= host->getCommSize();
-	const uint32 workerId	= host->getId();
-	const uint32 numDataPoints = dataPoints.size();
-
-	for (uint32 epoch = 0; epoch < maxIterations /* & !bConverges */; ++epoch)
+	for (uint32 epoch = 0; epoch < maxIterations & !bConverges; ++epoch)
 	{
 		// Save current cluster states for convergence check
 		auto prevClusters = clusters;
@@ -160,7 +172,7 @@ std::vector<Cluster<T>> genClusters(const std::vector<T> & dataPoints, uint32 nu
 			for (uint32 i = 0; i < numWorkers; ++i)
 				if (i != workerId)
 				{
-					std::vector<Cluster<T>> remoteClusters(numClusters);
+					Array<Cluster<T>> remoteClusters(numClusters);
 					host->receive(&remoteClusters[0], numClusters, i, epoch);
 
 					// Fuse with this
@@ -198,7 +210,7 @@ std::vector<Cluster<T>> genClusters(const std::vector<T> & dataPoints, uint32 nu
 		}
 		#else
 		// Gather all updates
-		std::vector<Cluster<T>> remoteClusters(numWorkers * numClusters);
+		Array<Cluster<T>> remoteClusters(numWorkers * numClusters);
 		host->allgather(&clusters[0], numClusters, &remoteClusters[0], numClusters);
 		
 		// Commit udpates

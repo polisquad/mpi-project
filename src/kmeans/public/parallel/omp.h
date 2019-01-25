@@ -17,7 +17,7 @@ namespace OMP
 
 	public:
 		/// Default constructor
-		FORCE_INLINE CriticalSection()
+		FORCE_INLINE CriticalSection() : mutex()
 		{
 			// Initialize lock
 			omp_init_lock(&mutex);

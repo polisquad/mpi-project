@@ -60,6 +60,32 @@ namespace Simd
 		static CONSTEXPR FORCE_INLINE Type load(float32 s) { return Type{s, s, s, s}; }
 
 		/**
+		 * Creates vector from buffer
+		 * 
+		 * @param [in] b buffer operand
+		 * @return vector type
+		 * @{
+		 */
+		/// Requires b to be 32-byte aligned
+		static FORCE_INLINE Type load(const float32 * b) { return _mm_load_ps(b); }
+		/// No alignment required
+		static FORCE_INLINE Type loadu(const float32 * b) { return _mm_loadu_ps(b); }
+		/// @}
+
+		/**
+		 * Store vector intrinsic in buffer
+		 * 
+		 * @param [in] b buffer operand
+		 * @param [in] v vector operand
+		 * @{
+		 */
+		/// Requires b to be 32-byte aligned
+		static FORCE_INLINE void store(float32 * b, Type v) { _mm_store_ps(b, v); }
+		/// No alignment required
+		static FORCE_INLINE void storeu(float32 * b, Type v) { _mm_storeu_ps(b, v); }
+		/// @}
+
+		/**
 		 * Arithmetic operations
 		 * 
 		 * @param [in] v1,v2 intrinics operands
@@ -190,6 +216,7 @@ namespace Simd
 		static FORCE_INLINE Type load(const float32 * b) { return _mm256_load_ps(b); }
 		/// No alignment required
 		static FORCE_INLINE Type loadu(const float32 * b) { return _mm256_loadu_ps(b); }
+		/// @}
 
 		/**
 		 * Store vector intrinsic in buffer

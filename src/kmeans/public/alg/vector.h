@@ -2,6 +2,8 @@
 
 #include "coremin.h"
 
+#define DEFAULT_MAX_SIZE 8
+
 /**
  * A variable-length vector
  */
@@ -42,23 +44,24 @@ public:
 			new (buffer + i) T(s);
 	}
 
+	/// Returns vector size
+	FORCE_INLINE uint32 getSize() const { return size; }
+
 	/// Random access operator
 	FORCE_INLINE T &		operator[](uint32 i)		{ return buffer[i]; }
 	FORCE_INLINE const T &	operator[](uint32 i) const	{ return buffer[i]; }
 
 	/// Resize vector
-	FORCE_INLINE void resize(uint32 _size) { size = _size > N ? size : _size; }
+	FORCE_INLINE void resize(uint32 _size) { size = _size > N ? N : _size; }
 };
 
 #include "templates/simd.h"
-// Todo, force std::vector to align correctly
-// and remove unaligned load/store
 
 /**
  * Variable-length vector type compliant
  * with cluster data type requirements
  */
-template<typename T, uint32 N, bool = hasVectorIntrinsics(T, 8)>
+template<typename T, uint32 N, bool = hasVectorIntrinsics(T, 4) & hasVectorIntrinsics(T, 8)>
 struct Vector : public VectorBase<T, N>
 {
 public:
@@ -70,12 +73,14 @@ public:
  * Vector intrisics specialization
  */
 template<typename T, uint32 N>
-struct GCC_ALIGN(32) Vector<T, N, true> : public VectorBase<T, N>
+struct GCC_PACK(32) Vector<T, N, true> : public VectorBase<T, N>
 {
 public:
 	/// Vector intrinsics type
-	using VecOps	= Simd::Vector<T, 8>;
+	using VecOps	= Simd::Vector<T, 4>;
+	using DVecOps	= Simd::Vector<T, 8>;
 	using VecT		= typename VecOps::Type;
+	using DVecT		= typename DVecOps::Type;
 
 public:
 	/// Inherit base class constructors
@@ -92,164 +97,65 @@ protected:
 	 * @return ref to b1
 	 * @{
 	 */
-	static inline T * addBuffer(T * b1, const T * b2, uint32 size)
+	static FORCE_INLINE T * addBuffer(T * b1, const T * b2, uint32 size)
 	{
-		switch (size) // It's faster, piss off!!
-		{
-			case 0:
-				return b1;
-			case 1:
-				b1[0] += b2[0];
-				break;
-			case 2:
-				b1[0] += b2[0], b1[1] += b2[1];
-				break;
-			case 3:
-				b1[0] += b2[0], b1[1] += b2[1], b1[2] += b2[2];
-				break;
-			case 4:
-				b1[0] += b2[0], b1[1] += b2[1], b1[2] += b2[2], b1[3] += b2[3];
-				break;
-			default:
-				if (size < 8)
-				{
-					// Recursive call
-					addBuffer(b1, b2, 4);
-					addBuffer(b1 + 4, b2 + 4, size - 4);
-				}
-				else
-				{
-					// Use vector intrinsics
-					uint32 offset = 0;
-					for (; size >= 8; size -= 8, offset += 8)
-						VecOps::storeu(b1 + offset, VecOps::add(VecOps::loadu(b1 + offset), VecOps::loadu(b2 + offset)));
+		uint32 offset = 0;
+		for (; size >= 8; size -= 8, offset += 8)
+			DVecOps::store(b1 + offset, DVecOps::add(DVecOps::load(b1 + offset), DVecOps::load(b2 + offset)));
+		
+		for (; size >= 4; size -= 4, offset += 4)
+			VecOps::store(b1 + offset, VecOps::add(VecOps::load(b1 + offset), VecOps::load(b2 + offset)));
+		
+		for (; size > 0; --size, ++offset)
+			b1[offset] += b2[offset];
 
-					// Recursive call
-					addBuffer(b1 + offset, b2 + offset, size);
-				}
-				break;
-		}
+
+		return b1;
+	}
+
+	static FORCE_INLINE T * subBuffer(T * b1, const T * b2, uint32 size)
+	{
+		uint32 offset = 0;
+		for (; size >= 8; size -= 8, offset += 8)
+			DVecOps::store(b1 + offset, DVecOps::sub(DVecOps::load(b1 + offset), DVecOps::load(b2 + offset)));
+		
+		for (; size >= 4; size -= 4, offset += 4)
+			VecOps::store(b1 + offset, VecOps::sub(VecOps::load(b1 + offset), VecOps::load(b2 + offset)));
+		
+		for (; size > 0; --size, ++offset)
+			b1[offset] -= b2[offset];
 		
 		return b1;
 	}
 
-	static inline T * subBuffer(T * b1, const T * b2, uint32 size)
+	static FORCE_INLINE T * mulBuffer(T * b1, T s, uint32 size)
 	{
-		switch (size)
-		{
-			case 0:
-				return b1;
-			case 1:
-				b1[0] -= b2[0];
-				break;
-			case 2:
-				b1[0] -= b2[0], b1[1] -= b2[1];
-				break;
-			case 3:
-				b1[0] -= b2[0], b1[1] -= b2[1], b1[2] -= b2[2];
-				break;
-			case 4:
-				b1[0] -= b2[0], b1[1] -= b2[1], b1[2] -= b2[2], b1[3] -= b2[3];
-				break;
-			default:
-				if (size < 8)
-				{
-					// Recursive call
-					subBuffer(b1, b2, 4);
-					subBuffer(b1 + 4, b2 + 4, size - 4);
-				}
-				else
-				{
-					// Use vector intrinsics
-					uint32 offset = 0;
-					for (; size >= 8; size -= 8, offset += 8)
-						VecOps::storeu(b1 + offset, VecOps::sub(VecOps::loadu(b1 + offset), VecOps::loadu(b2 + offset)));
-
-					// Recursive call
-					subBuffer(b1 + offset, b2 + offset, size);
-				}
-				break;
-		}
+		uint32 offset = 0;
+		for (; size >= 8; size -= 8, offset += 8)
+			DVecOps::store(b1 + offset, DVecOps::mul(DVecOps::load(b1 + offset), DVecOps::load(s)));
 		
-		return b1;
-	}
-
-	static inline T * mulBuffer(T * b1, T s, uint32 size)
-	{
-		switch (size)
-		{
-			case 0:
-				return b1;
-			case 1:
-				b1[0] *= s;
-				break;
-			case 2:
-				b1[0] *= s, b1[1] *= s;
-				break;
-			case 3:
-				b1[0] *= s, b1[1] *= s, b1[2] *= s;
-				break;
-			case 4:
-				b1[0] *= s, b1[1] *= s, b1[2] *= s, b1[3] *= s;
-				break;
-			default:
-				if (size < 8)
-				{
-					// Recursive call
-					mulBuffer(b1, s, 4);
-					mulBuffer(b1 + 4, s, size - 4);
-				}
-				else
-				{
-					// Use vector intrinsics
-					uint32 offset = 0;
-					for (; size >= 8; size -= 8, offset += 8)
-						VecOps::storeu(b1 + offset, VecOps::mul(VecOps::loadu(b1 + offset), VecOps::load(s)));
-
-					// Recursive call
-					mulBuffer(b1 + offset, s, size);
-				}
-				break;
-		}
+		for (; size >= 4; size -= 4, offset += 4)
+			VecOps::store(b1 + offset, VecOps::mul(VecOps::load(b1 + offset), VecOps::load(s)));
+		
+		for (; size > 0; --size, ++offset)
+			b1[offset] *= s;
 		
 		return b1;
 	}
 	/// @}
 
 	/// Horizontal sum buffer
-	static inline T haddBuffer(const T * b, uint32 size)
+	static FORCE_INLINE T haddBuffer(const T * b, uint32 size)
 	{
-		if (size <= 0) return T(0);
-
-		switch (size)
-		{
-			case 1:
-				return b[0];
-			case 2:
-				return b[0] + b[1];
-			case 3:
-				return b[0] + b[1] + b[2];
-			case 4:
-				return b[0] + b[1] + b[2] + b[3];		
-			default:
-				if (size < 16)
-					return haddBuffer(b, 4) + haddBuffer(b + 4, size - 4);
-				else
-				{
-					// Use vector intrinsics
-					T temp[8];
-					VecT accum = VecOps::loadu(b);
-
-					uint32 offset = 8;
-					size -= 8;
-					for (; size >= 8; size -= 8, offset += 8)
-						accum = VecOps::add(accum, VecOps::loadu(b + offset));
-					
-					VecOps::storeu(temp, accum);
-
-					return haddBuffer(temp, 8) + haddBuffer(b + offset, size);
-				}
-		}
+		T out = T(0);
+		uint32 offset = 0;
+		for (; size >= 4; size -= 4, offset += 4)
+			out += b[offset] + b[offset + 1] + b[offset + 2] + b[offset + 3];
+		
+		for (; size > 0; --size, ++offset)
+			out += b[offset];
+		
+		return out;
 	}
 
 	/// Just a square ...
@@ -258,41 +164,18 @@ protected:
 	/// Compute horizontal sum of difference
 	static inline T normBuffer(const T * b1, const T * b2, uint32 size)
 	{
-		if (size <= 0) return T(0);
-
-		switch (size)
-		{
-			case 1:
-				return square(b1[0] - b2[0]);
-			case 2:
-				return square(b1[0] - b2[0]) + square(b1[1] - b2[1]);
-			case 3:
-				return square(b1[0] - b2[0]) + square(b1[1] - b2[1]) + square(b1[2] - b2[2]);
-			case 4:
-				return square(b1[0] - b2[0]) + square(b1[1] - b2[1]) + square(b1[2] - b2[2]) + square(b1[3] - b2[3]);		
-			default:
-				if (size < 16)
-					return normBuffer(b1, b2, 4) + normBuffer(b1 + 4, b2 + 4, size - 4);
-				else
-				{
-					// Use vector intrinsics
-					T temp[8];
-					VecT accum = VecOps::sub(VecOps::loadu(b1), VecOps::loadu(b2));
-					accum = VecOps::mul(accum, accum);
-
-					uint32 offset = 8;
-					size -= 8;
-					for (; size >= 8; size -= 8, offset += 8)
-					{
-						VecT diff = VecOps::sub(VecOps::loadu(b1 + offset), VecOps::loadu(b2 + offset));
-						accum = VecOps::add(accum, VecOps::mul(diff, diff));
-					}
-					
-					VecOps::storeu(temp, accum);
-
-					return haddBuffer(temp, 8) + normBuffer(b1 + offset, b2 + offset, size);
-				}
-		}
+		T out = T(0);
+		uint32 offset = 0;
+		for (; size >= 4; size -= 4, offset += 4)
+			out += square(b1[offset] - b2[offset]),
+			out += square(b1[offset + 1] - b2[offset + 1]),
+			out += square(b1[offset + 2] - b2[offset + 2]),
+			out += square(b1[offset + 3] - b2[offset + 3]);
+		
+		for (; size > 0; --size, ++offset)
+			out += square(b1[offset] - b2[offset]);
+		
+		return out;
 	}
 
 public:
@@ -383,3 +266,7 @@ public:
 		return sqrtf(normBuffer(this->buffer, v.buffer, minSize));
 	}
 };
+
+/// Default max size
+template<typename T>
+using Vec = Vector<T, DEFAULT_MAX_SIZE>;

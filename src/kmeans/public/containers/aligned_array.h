@@ -178,6 +178,17 @@ public:
 		return *this;
 	}
 
+	/// Adds n default initialized elements
+	FORCE_INLINE void addDefault(uint32 n)
+	{
+		// Get required space
+		resizeIfNecessary(size + n);
+		size += n;
+
+		for (uint32 i = size - n; i < size; ++i)
+			new (buffer + i) T();
+	}
+
 protected:
 	/// Resize if necessary
 	FORCE_INLINE bool resizeIfNecessary(uint64 _size)

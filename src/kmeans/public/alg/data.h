@@ -17,7 +17,7 @@
  * be default constructible
  */
 template<typename T>
-class Cluster
+class GCC_ALIGN(32) Cluster
 {
 protected:
 	/// Current centroid
@@ -106,124 +106,150 @@ public:
 	/// Cluster initialization algorithms
 	/// @{
 	/// Randomly pick k centroids
-	static std::vector<Cluster<T>> initRandom(const std::vector<T> & dataPoints, uint32 numClusters);
+	static Array<Cluster<T>, 32> initRandom(const Array<T> & dataPoints, uint32 numClusters)
+	{
+		printf("randommmm");
+		Array<Cluster<T>> clusters(numClusters);
+		const uint32 numDataPoints = dataPoints.getSize();
+
+		// Check that num of data points is sufficient
+		if (numDataPoints <= numClusters)
+		{
+			for (const auto & dataPoint : dataPoints)
+			{
+				Cluster<T> cluster;
+				cluster.reset(dataPoint);
+				clusters.push(cluster);
+			}
+			
+			return clusters;
+		}
+
+		// Randomly pick
+		uint32 * pick = new uint32[numClusters];
+		for (uint32 i = 0; i < numClusters; ++i)
+		{
+			uint32 idx;
+			bool bDuplicate = false;
+
+			// Pick random until no duplicate
+			do
+			{
+				uint32 idx = rand() % numDataPoints;
+
+				for (uint32 k = 0; k < i & !bDuplicate; ++k)
+					if (pick[k] == idx) bDuplicate = true;
+			} while (bDuplicate);
+
+			pick[i] = idx;
+			
+			Cluster<T> cluster(dataPoints[idx]);
+			clusters.push(cluster);
+		}
+
+		return clusters;
+	}
 
 	/// Find k furthest centroids
-	static std::vector<Cluster<T>> initFurthest(const std::vector<T> & dataPoints, uint32 numClusters);
+	static Array<Cluster<T>, 32> initFurthest(const Array<T> & dataPoints, uint32 numClusters)
+	{
+		Array<Cluster<T>> clusters(numClusters);
+		const uint32 numDataPoints = dataPoints.getSize();
+
+		if (numDataPoints <= numClusters)
+		{
+			for (const auto & dataPoint : dataPoints)
+			{
+				Cluster<T> cluster(dataPoint);
+				clusters.push(cluster);
+			}
+			
+			return clusters;
+		}
+
+	#if 1
+		// Randomly choose first
+		{
+			Cluster<T> cluster;
+			cluster.reset(dataPoints[rand() % numDataPoints]);
+			clusters.push(cluster);
+		}
+	#elif 0
+		{
+			Cluster<T> cluster;
+
+			// Choose smallest
+			const T origin = T();
+			uint32 smallest = 0;
+			float32 minDist = dataPoints[0].getDistance(origin);
+
+			for (uint32 i = 1; i < numDataPoints; ++i)
+			{
+				const auto & dataPoint = dataPoints[i];
+
+				const float32 dist = dataPoint.getDistance(origin);
+				if (dist < minDist)
+					minDist = dist, smallest = i;
+			}
+
+			cluster.reset(dataPoints[smallest]);
+			clusters.push(cluster);
+		}	
+	#else
+		{
+			Cluster<T> cluster;
+
+			// Choose average
+			T average = dataPoints[0];
+			uint32 i = 1;
+			for (; i < numDataPoints; ++i)
+				average += dataPoints[i];
+
+			cluster.reset(average * (1.f / i));
+			clusters.push(cluster);
+		}
+
+	#endif
+
+		while (clusters.getSize() < numClusters)
+		{
+			uint32 furthest = -1;
+			float32 maxDist = 0.f;
+
+			for (uint32 i = 1; i < numDataPoints; ++i)
+			{
+				const auto & dataPoint = dataPoints[i];
+				float32 dist = FLT_MAX;
+
+				for (const auto & cluster : clusters)
+				{
+					float32 d = cluster.getDistance(dataPoint);
+					if (d < dist) dist = d;
+				}
+
+				if (dist > maxDist)
+				{
+					maxDist = dist;
+					furthest = i;
+				}
+			}
+
+			// Add furthest to k set
+			Cluster<T> cluster;
+			cluster.reset(dataPoints[furthest]);
+			clusters.push(cluster);
+		}
+
+		return clusters;
+	}
 	/// @}
 };
-
-template<typename T>
-std::vector<Cluster<T>> Cluster<T>::initRandom(const std::vector<T> & dataPoints, uint32 numClusters)
-{
-	std::vector<Cluster<T>> clusters;
-	const uint32 numDataPoints = dataPoints.size();
-
-	clusters.reserve(numClusters);
-
-	// Check that num of data points is sufficient
-	if (numDataPoints <= numClusters)
-	{
-		for (const auto & dataPoint : dataPoints)
-		{
-			Cluster<T> cluster;
-			cluster.reset(dataPoint);
-			clusters.push_back(cluster);
-		}
-		
-		return clusters;
-	}
-
-	// Randomly pick
-	uint32 * pick = new uint32[numClusters];
-	for (uint32 i = 0; i < numClusters; ++i)
-	{
-		uint32 idx;
-		bool bDuplicate = false;
-
-		// Pick random until no duplicate
-		do
-		{
-			uint32 idx = rand() % numDataPoints;
-
-			for (uint32 k = 0; k < i & !bDuplicate; ++k)
-				if (pick[k] == idx) bDuplicate = true;
-		} while (bDuplicate);
-
-		pick[i] = idx;
-		
-		Cluster<T> cluster;
-		cluster.reset(dataPoints[idx]);
-		clusters.push_back(cluster);
-	}
-
-	return clusters;
-}
-
-template<typename T>
-std::vector<Cluster<T>> Cluster<T>::initFurthest(const std::vector<T> & dataPoints, uint32 numClusters)
-{
-	std::vector<Cluster<T>> clusters;
-	const uint32 numDataPoints = dataPoints.size();
-
-	clusters.reserve(numClusters);
-
-	if (numDataPoints <= numClusters)
-	{
-		for (const auto & dataPoint : dataPoints)
-		{
-			Cluster<T> cluster;
-			cluster.reset(dataPoint);
-			clusters.push_back(cluster);
-		}
-		
-		return clusters;
-	}
-
-	// Randomly choose first
-	{
-		Cluster<T> cluster;
-		cluster.reset(dataPoints[rand() % dataPoints.size()]);
-		clusters.push_back(cluster);
-	}
-
-	while (clusters.size() < numClusters)
-	{
-		uint32 furthest = -1;
-		float32 maxDist = 0.f;
-
-		for (uint32 i = 1; i < numDataPoints; ++i)
-		{
-			const auto & dataPoint = dataPoints[i];
-			float32 dist = FLT_MAX;
-
-			for (const auto & cluster : clusters)
-			{
-				float32 d = cluster.getDistance(dataPoint);
-				if (d < dist) dist = d;
-			}
-
-			if (dist > maxDist)
-			{
-				maxDist = dist;
-				furthest = i;
-			}
-		}
-
-		// Add furthest to k set
-		Cluster<T> cluster;
-		cluster.reset(dataPoints[furthest]);
-		clusters.push_back(cluster);
-	}
-
-	return clusters;
-}
 
 /**
  * Simple data point with two components
  */
 template<typename T>
-struct Point2
+struct GCC_ALIGN(8) Point2
 {
 public:
 	union
