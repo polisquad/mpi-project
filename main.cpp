@@ -11,7 +11,7 @@ int main(int argc, char **argv) {
     // TODO
     // these are read from command line args
     uint32 k = 5;
-    uint32 maxNumEpochs = 300;
+    uint32 maxNumEpochs = 500;
     float32 tol = 1e-4;
     bool verbose = true;
 
@@ -26,26 +26,26 @@ int main(int argc, char **argv) {
     // Set initial centroids
     thisNode.selectRandomCentroids();
 
-    uint32 epoch = 0;
+    // Receive Initial centroids
+    thisNode.receiveGlobalCentroids();
 
-    for (epoch = 0; epoch < maxNumEpochs; epoch++) {
+    for (uint32 epoch = 1; epoch <= maxNumEpochs; epoch++) {
+        // Compute memberships of each point
+        thisNode.optimizeMemberships();
 
-        // Receive current centroids and loss
+        // Compute local centroids according to local membership view
+        thisNode.optimizeLocalCentroids();
+
+        // Compute new centroids
+        thisNode.updateGlobal(epoch);
+
+        // Receive current centroids and loss from previous epoch
         thisNode.receiveGlobal(epoch);
 
         // Check convergence
         if (thisNode.hasConverged()) {
-             break;
+               break;
         }
-
-        // Compute memberships of each point
-        thisNode.optimizeMemberships();
-
-        // Compute local centroids and local loss according to local membership view
-        thisNode.optimizeLocalCentroids();
-
-        // Compute new centroids and new loss
-        thisNode.updateGlobal(epoch);
     }
 
     thisNode.finalize();

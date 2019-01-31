@@ -103,24 +103,41 @@ public:
         }
     }
 
-    void receiveGlobal(uint32 epoch) {
-        std::vector<Point<float32>> oldCentroids;
-        float32 oldLoss;
-
-        if (rank != 0) {
-            oldCentroids = std::vector<Point<float32>>(centroids);
-            oldLoss = loss;
-        }
-
+    void receiveGlobalCentroids() {
         MPI_Bcast(centroids.data(), static_cast<int32>(k * dataPointSize), MPI_BYTE, 0, MPI_COMM_WORLD);
+    }
 
-        if (epoch > 0) {
-            MPI_Bcast(&loss, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
+    void receiveGlobal(uint32 epoch) {
+        float32 oldLoss = loss;
+        uint64 cluster;
+        float32 newLocalLoss = 0;
+
+        receiveGlobalCentroids();
+
+        // Compute local loss
+        #pragma omp parallel for schedule(static) private(cluster) \
+            reduction(+: newLocalLoss)
+        for (uint64 pIndex = 0; pIndex < points.size(); pIndex++) {
+            cluster = localMemberships[pIndex];
+            newLocalLoss += points[pIndex].getSquaredDistance(centroids[cluster]);
+        }
+        localLoss = newLocalLoss;
+
+        // Gather local losses and compute overall loss
+        MPI_Reduce(&localLoss, &loss, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+        // Broadcast overall loss
+        MPI_Bcast(&loss, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
+
+        converged = checkConvergence(oldLoss, loss);
+
+        if (verbose && rank == 0) {
+            printf("Completed epoch %u. Loss: %f\n", epoch, loss);
+            if (converged) {
+                printf("K-means algorithm took %u epochs to converge\n", epoch);
+            }
         }
 
-        if (rank != 0 && epoch > 0) {
-            converged = checkConvergence(oldLoss, loss);
-        }
     }
 
     void optimizeMemberships() {
@@ -149,22 +166,8 @@ public:
     void optimizeLocalCentroids() {
         std::vector<Point<float32>> newLocalCentroids(k, {0, 0});
         std::vector<int32> numPointsPerCentroid(k, 0);
-        float32 newLocalLoss = 0;
         uint64 cluster;
 
-//        // this is slow
-//        #pragma omp parallel for schedule(static) private(cluster)
-//        for (int32 pIndex = 0; pIndex < points.size(); pIndex++) {
-//            cluster = localMemberships[pIndex];
-//
-//            #pragma omp critical
-//            {
-//                newLocalCentroids[cluster] += points[pIndex];
-//                numPointsPerCentroid[cluster] += 1;
-//            }
-//        }
-
-        // no lock overhead but reductions
         // TODO dynamic with different chunk sizes vs static
         #pragma omp parallel for schedule(static) private(cluster) \
                 reduction(reducePointVectors : newLocalCentroids) \
@@ -184,21 +187,12 @@ public:
             }
         }
 
-        #pragma omp parallel for schedule(static) private(cluster) \
-                reduction(+: newLocalLoss)
-        for (uint64 pIndex = 0; pIndex < points.size(); pIndex++) {
-            cluster = localMemberships[pIndex];
-            newLocalLoss += points[pIndex].getSquaredDistance(newLocalCentroids[cluster]);
-        }
-
         localCentroids = std::vector<Point<float32>>(newLocalCentroids);
-        localLoss = newLocalLoss;
     }
 
     void updateGlobal(uint32 epoch) {
         std::vector<Point<float32>> gatherLocalCentroids;
         int32 count = static_cast<int32>(k * dataPointSize);
-        float32 newLoss;
 
         if (rank == 0) {
             gatherLocalCentroids = std::vector<Point<float32>>(commSize * k);
@@ -208,8 +202,6 @@ public:
         MPI_Gather(localCentroids.data(), count, MPI_BYTE,
                    gatherLocalCentroids.data(), count, MPI_BYTE, 0, MPI_COMM_WORLD);
 
-        // Gather local losses
-        MPI_Reduce(&localLoss, &newLoss, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
 
         if (rank == 0) {
             std::vector<Point<float32>> newCentroids(k, {0, 0});
@@ -225,19 +217,7 @@ public:
                 newCentroids[i] /= commSize;
             }
 
-            newLoss /= commSize;
-
-            converged = checkConvergence(loss, newLoss);
             centroids = newCentroids;
-            loss = newLoss;
-
-            if (verbose) {
-                printf("Completed epoch %u. Loss: %f\n", epoch, loss);
-                if (converged) {
-                    printf("K-means algorithm took %u epochs to converge\n", epoch);
-
-                }
-            }
         }
     }
 
