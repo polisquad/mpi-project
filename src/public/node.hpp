@@ -140,13 +140,18 @@ public:
 
     }
 
-    void optimizeMemberships() {
+    void optimize() {
         float32 minDist;
         float32 dist;
         uint64 cluster;
 
+        std::vector<Point<float32>> newLocalCentroids(k, {0, 0});
+        std::vector<int32> numPointsPerCentroid(k, 0);
+
         // TODO dynamic with different chunk sizes vs static
-        #pragma omp parallel for schedule(static) private(minDist, dist, cluster)
+        #pragma omp parallel for schedule(static) private(minDist, dist, cluster) \
+                reduction(reducePointVectors : newLocalCentroids) \
+                reduction(reduceIntVectors : numPointsPerCentroid)
         for (uint64 pIndex = 0; pIndex < points.size(); pIndex++) {
             const Point<float32>& p = points[pIndex];
             minDist = p.getDistance(centroids[0]);
@@ -160,20 +165,6 @@ public:
                 }
             }
             localMemberships[pIndex] = cluster;
-        }
-    }
-
-    void optimizeLocalCentroids() {
-        std::vector<Point<float32>> newLocalCentroids(k, {0, 0});
-        std::vector<int32> numPointsPerCentroid(k, 0);
-        uint64 cluster;
-
-        // TODO dynamic with different chunk sizes vs static
-        #pragma omp parallel for schedule(static) private(cluster) \
-                reduction(reducePointVectors : newLocalCentroids) \
-                reduction(reduceIntVectors : numPointsPerCentroid)
-        for (uint64 pIndex = 0; pIndex < points.size(); pIndex++) {
-            cluster = localMemberships[pIndex];
             newLocalCentroids[cluster] += points[pIndex];
             numPointsPerCentroid[cluster] += 1;
         }
@@ -189,6 +180,7 @@ public:
 
         localCentroids = std::vector<Point<float32>>(newLocalCentroids);
     }
+
 
     void updateGlobal(uint32 epoch) {
         std::vector<Point<float32>> gatherLocalCentroids;

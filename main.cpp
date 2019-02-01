@@ -11,14 +11,14 @@ int main(int argc, char **argv) {
     // TODO
     // these are read from command line args
     uint32 k = 5;
-    uint32 maxNumEpochs = 500;
+    uint32 maxNumEpochs = 100;
     float32 tol = 1e-4;
     bool verbose = true;
 
     Node thisNode(k, tol, verbose);
 
     // Generate dummy dataset
-    writeDatasetToFile(generateDummyDataset());
+    // writeDatasetToFile(generateDummyDataset());
 
     // Assign equally data points to each machine
     thisNode.loadPoints();
@@ -30,11 +30,8 @@ int main(int argc, char **argv) {
     thisNode.receiveGlobalCentroids();
 
     for (uint32 epoch = 1; epoch <= maxNumEpochs; epoch++) {
-        // Compute memberships of each point
-        thisNode.optimizeMemberships();
-
-        // Compute local centroids according to local membership view
-        thisNode.optimizeLocalCentroids();
+        // Compute memberships of each point and compute local centroids according to local membership view
+        thisNode.optimize();
 
         // Compute new centroids
         thisNode.updateGlobal(epoch);
@@ -44,7 +41,7 @@ int main(int argc, char **argv) {
 
         // Check convergence
         if (thisNode.hasConverged()) {
-               break;
+            break;
         }
     }
 
