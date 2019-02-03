@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
     Node thisNode(k, tol, verbose);
 
     // Generate dummy dataset
-    // writeDatasetToFile(generateDummyDataset());
+    writeDatasetToFile(generateDummyDataset());
 
     // Assign equally data points to each machine
     thisNode.loadPoints();

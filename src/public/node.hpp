@@ -9,15 +9,17 @@
 #include <utils.hpp>
 #include <algorithm>
 #include <omp.h>
-#include <chrono>
+#include <local_centroid.hpp>
 
 // Reduce(sum) vectors of points
-#pragma omp declare reduction(reducePointVectors : std::vector<Point<float32>> : \
+#pragma omp declare reduction(reduceLocalCentroids : std::vector<LocalCentroid> : \
                               std::transform(omp_out.begin(), omp_out.end(), \
                                              omp_in.begin(), omp_out.begin(), \
-                                             [](Point<float32> p1, Point<float32> p2){ \
-                                                    return p1 + p2;})) \
+                                             [](LocalCentroid l1, LocalCentroid l2){ \
+                                                    return LocalCentroid(l1.point + l2.point, false);})) \
                     initializer(omp_priv = omp_orig)
+
+
 
 // Reduce(sum) vectors of int32
 #pragma omp declare reduction(reduceIntVectors : std::vector<int32> : \
@@ -42,11 +44,12 @@ private:
     float32 loss = 0.0;
 
     std::vector<Point<float32>> dataset;
-    uint64 dataPointSize;
+    uint64 dataPointSize = sizeof(Point<float32>);
+    uint64 localCentroidSize = sizeof(LocalCentroid);
     std::vector<Point<float32>> points;
 
     std::vector<Point<float32>> centroids;
-    std::vector<Point<float32>> localCentroids;
+    std::vector<LocalCentroid> localCentroids;
 
     std::vector<uint64> localMemberships;
     std::vector<uint64> memberships;
@@ -59,8 +62,7 @@ public:
     Node() = delete;
 
     explicit Node(uint32 k, float32 tol=1e-4, bool verbose=false) :
-        dataPointSize(sizeof(Point<float32>)), converged(false),
-        k(k), centroids(k), localCentroids(k), tolerance(tol), verbose(verbose)
+        converged(false), k(k), centroids(k), localCentroids(k), tolerance(tol), verbose(verbose)
     {
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         MPI_Comm_size(MPI_COMM_WORLD, &commSize);
@@ -145,12 +147,12 @@ public:
         float32 dist;
         uint64 cluster;
 
-        std::vector<Point<float32>> newLocalCentroids(k, {0, 0});
+        std::vector<LocalCentroid> newLocalCentroids(k, {{0, 0}, false});
         std::vector<int32> numPointsPerCentroid(k, 0);
 
         // TODO dynamic with different chunk sizes vs static
         #pragma omp parallel for schedule(static) private(minDist, dist, cluster) \
-                reduction(reducePointVectors : newLocalCentroids) \
+                reduction(reduceLocalCentroids : newLocalCentroids) \
                 reduction(reduceIntVectors : numPointsPerCentroid)
         for (uint64 pIndex = 0; pIndex < points.size(); pIndex++) {
             const Point<float32>& p = points[pIndex];
@@ -165,7 +167,7 @@ public:
                 }
             }
             localMemberships[pIndex] = cluster;
-            newLocalCentroids[cluster] += points[pIndex];
+            newLocalCentroids[cluster].point += points[pIndex];
             numPointsPerCentroid[cluster] += 1;
         }
 
@@ -174,20 +176,23 @@ public:
         // #pragma omp parallel for schedule(static)
         for (uint64 cIndex = 0; cIndex < k; cIndex++) {
             if (numPointsPerCentroid[cIndex] != 0) {
-                newLocalCentroids[cIndex] = newLocalCentroids[cIndex] / numPointsPerCentroid[cIndex];
+                newLocalCentroids[cIndex].point = newLocalCentroids[cIndex].point / numPointsPerCentroid[cIndex];
+            } else {
+                newLocalCentroids[cIndex].isZeroed = true;
             }
         }
 
-        localCentroids = std::vector<Point<float32>>(newLocalCentroids);
+        localCentroids = std::vector<LocalCentroid>(newLocalCentroids);
     }
 
 
     void updateGlobal(uint32 epoch) {
-        std::vector<Point<float32>> gatherLocalCentroids;
-        int32 count = static_cast<int32>(k * dataPointSize);
+        std::vector<LocalCentroid> gatherLocalCentroids;
+        int32 count = static_cast<int32>(k * localCentroidSize);
+        std::vector<int32> contributions(k, commSize);
 
         if (rank == 0) {
-            gatherLocalCentroids = std::vector<Point<float32>>(commSize * k);
+            gatherLocalCentroids = std::vector<LocalCentroid>(commSize * k);
         }
 
         // Gather local centroids
@@ -201,12 +206,14 @@ public:
             // #pragma omp parallel for schedule(static) \
             reduction(reducePointVectors : newCentroids)
             for (uint64 i = 0; i < gatherLocalCentroids.size(); i++) {
-                newCentroids[i % k] += gatherLocalCentroids[i];
+                LocalCentroid& l = gatherLocalCentroids[i];
+                if (l.isZeroed) contributions[i % k] -= 1;
+                newCentroids[i % k] += l.point;
             }
 
             // #pragma omp parallel for schedule(static)
             for (uint64 i = 0; i < k; i++) {
-                newCentroids[i] /= commSize;
+                newCentroids[i] /= contributions[i];
             }
 
             centroids = newCentroids;
