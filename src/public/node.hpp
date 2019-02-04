@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <omp.h>
 #include <local_centroid.hpp>
+#include <utils.hpp>
 
 // Reduce(sum) vectors of points
 #pragma omp declare reduction(reduceLocalCentroids : std::vector<LocalCentroid> : \
@@ -28,6 +29,7 @@
                                              std::plus<int32>())) \
                     initializer(omp_priv = omp_orig)
 
+
 // TODO
 // -> separate interface
 class Node {
@@ -44,8 +46,6 @@ private:
     float32 loss = 0.0;
 
     std::vector<Point<float32>> dataset;
-    uint64 dataPointSize = sizeof(Point<float32>);
-    uint64 localCentroidSize = sizeof(LocalCentroid);
     std::vector<Point<float32>> points;
 
     std::vector<Point<float32>> centroids;
@@ -57,6 +57,9 @@ private:
     int32 receiveCount;
     std::vector<int32> displacements;
     std::vector<int32> sendCounts;
+
+    MPI_Datatype pointType = createPointDataType();
+    MPI_Datatype localCentroidType = createLocalCentroidDataType(pointType);
 
 public:
     Node() = delete;
@@ -72,10 +75,9 @@ public:
         if (rank == 0) {
             dataset = loadDataset();
             sendCounts = getDataSplits(dataset.size(), commSize);
-            for (int32 &sendCount : sendCounts) sendCount *= dataPointSize;
         }
 
-        // Tell each node how many bytes it will receive in the next Scatterv operation
+        // Tell each node how many point it will receive in the next Scatterv operation
         MPI_Scatter(sendCounts.data(), 1, MPI_INT, &receiveCount, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
         // Prepare Scatterv
@@ -86,11 +88,11 @@ public:
                 displacements[i] = displacements[i - 1] + sendCounts[i - 1];
             }
         }
-        points = std::vector<Point<float32>>(static_cast<uint64>((receiveCount / dataPointSize)));
+        points = std::vector<Point<float32>>(static_cast<uint64>((receiveCount)));
 
         // Scatter points among nodes
-        MPI_Scatterv(dataset.data(), sendCounts.data(), displacements.data(), MPI_BYTE,
-                     points.data(), static_cast<int32>(receiveCount * dataPointSize), MPI_BYTE, 0, MPI_COMM_WORLD);
+        MPI_Scatterv(dataset.data(), sendCounts.data(), displacements.data(), pointType,
+                     points.data(), receiveCount, pointType, 0, MPI_COMM_WORLD);
 
         localMemberships = std::vector<uint64>(points.size(), 0);
     }
@@ -106,7 +108,7 @@ public:
     }
 
     void receiveGlobalCentroids() {
-        MPI_Bcast(centroids.data(), static_cast<int32>(k * dataPointSize), MPI_BYTE, 0, MPI_COMM_WORLD);
+        MPI_Bcast(centroids.data(), k, pointType, 0, MPI_COMM_WORLD);
     }
 
     void receiveGlobal(uint32 epoch) {
@@ -188,7 +190,6 @@ public:
 
     void updateGlobal(uint32 epoch) {
         std::vector<LocalCentroid> gatherLocalCentroids;
-        int32 count = static_cast<int32>(k * localCentroidSize);
         std::vector<int32> contributions(k, commSize);
 
         if (rank == 0) {
@@ -196,8 +197,8 @@ public:
         }
 
         // Gather local centroids
-        MPI_Gather(localCentroids.data(), count, MPI_BYTE,
-                   gatherLocalCentroids.data(), count, MPI_BYTE, 0, MPI_COMM_WORLD);
+        MPI_Gather(localCentroids.data(), k, localCentroidType,
+                   gatherLocalCentroids.data(), k, localCentroidType, 0, MPI_COMM_WORLD);
 
 
         if (rank == 0) {
@@ -223,13 +224,10 @@ public:
     void finalize() {
         if (rank == 0) {
             memberships = std::vector<uint64>(dataset.size(), 0);
-            for (int &displacement : displacements) {
-                displacement /= dataPointSize;
-            }
         }
 
         // Gather local memberships [Optional: root could aswell calculate all the memberships]
-        MPI_Gatherv(localMemberships.data(), static_cast<int32>(receiveCount / dataPointSize), MPI_UNSIGNED_LONG_LONG,
+        MPI_Gatherv(localMemberships.data(), receiveCount, MPI_UNSIGNED_LONG_LONG,
                     memberships.data(), sendCounts.data(), displacements.data(), MPI_UNSIGNED_LONG_LONG,
                     0, MPI_COMM_WORLD);
     }

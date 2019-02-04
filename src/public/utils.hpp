@@ -7,6 +7,7 @@
 #include <vector>
 #include <random>
 #include <cmath>
+#include <mpi.h>
 
 // temporary utils for trying stuff
 
@@ -19,6 +20,42 @@ void writeDatasetToFile(const std::vector<Point<float32>> &dataset, const char *
 
     fclose(fp);
 }
+
+MPI_Datatype createPointDataType() {
+    MPI_Datatype pointType, types[1];
+    int blockCounts[1];
+    MPI_Aint offsets[1];
+
+    // x, y fields
+    offsets[0] = 0;
+    types[0] = MPI_FLOAT;
+    blockCounts[0] = 2;
+
+    MPI_Type_struct(1, blockCounts, offsets, types, &pointType);
+    MPI_Type_commit(&pointType);
+    return pointType;
+};
+
+MPI_Datatype createLocalCentroidDataType(MPI_Datatype pointType) {
+    MPI_Datatype localCentroidType, types[2];
+    int blockCounts[2];
+    MPI_Aint offsets[2], extent;
+
+    // Point field
+    offsets[0] = 0;
+    types[0] = pointType;
+    blockCounts[0] = 1;
+
+    // isZeroed field
+    MPI_Type_extent(pointType, &extent);
+    offsets[1] = extent;
+    types[1] = MPI_CXX_BOOL;
+    blockCounts[1] = 1;
+
+    MPI_Type_struct(2, blockCounts, offsets, types, &localCentroidType);
+    MPI_Type_commit(&localCentroidType);
+    return localCentroidType;
+};
 
 void writeResultsToFile(const std::vector<uint64>& memberships,
                         const char *in = "../data/in.csv",
