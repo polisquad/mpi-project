@@ -53,8 +53,8 @@ private:
     std::vector<Point<float32>> centroids;
     std::vector<LocalCentroid> localCentroids;
 
-    std::vector<uint64> localMemberships;
-    std::vector<uint64> memberships;
+    std::vector<uint32> localMemberships;
+    std::vector<uint32> memberships;
 
     int32 receiveCount;
     std::vector<int32> displacements;
@@ -79,7 +79,7 @@ public:
             sendCounts = getDataSplits(dataset.size(), commSize);
         }
 
-        // Tell each node how many point it will receive in the next Scatterv operation
+        // Tell each node how many points it will receive in the next Scatterv operation
         MPI_Scatter(sendCounts.data(), 1, MPI_INT, &receiveCount, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
         // Prepare Scatterv
@@ -96,7 +96,7 @@ public:
         MPI_Scatterv(dataset.data(), sendCounts.data(), displacements.data(), pointType,
                      points.data(), receiveCount, pointType, 0, MPI_COMM_WORLD);
 
-        localMemberships = std::vector<uint64>(points.size(), 0);
+        localMemberships = std::vector<uint32>(points.size(), 0);
     }
 
 
@@ -149,7 +149,7 @@ public:
     void optimize() {
         float32 minDist;
         float32 dist;
-        uint64 cluster;
+        uint32 cluster;
 
         std::vector<LocalCentroid> newLocalCentroids(k, {{0, 0}, false});
         std::vector<int32> numPointsPerCentroid(k, 0);
@@ -163,7 +163,7 @@ public:
             minDist = p.getDistance(centroids[0]);
             cluster = 0;
 
-            for (uint64 cIndex = 1; cIndex < k; cIndex++) {
+            for (uint32 cIndex = 1; cIndex < k; cIndex++) {
                 dist = p.getDistance(centroids[cIndex]);
                 if (dist < minDist) {
                     minDist = dist;
@@ -178,8 +178,8 @@ public:
         // using a parallel for here is not worth unless there is a high number of clusters,
         // maybe add it with a if(k>x) clause?
         // #pragma omp parallel for schedule(static)
-        for (uint64 cIndex = 0; cIndex < k; cIndex++) {
-            if (numPointsPerCentroid[cIndex] != 0) {
+        for (uint32 cIndex = 0; cIndex < k; cIndex++) {
+            if (likely(numPointsPerCentroid[cIndex] != 0)) {
                 newLocalCentroids[cIndex].point = newLocalCentroids[cIndex].point / numPointsPerCentroid[cIndex];
             } else {
                 newLocalCentroids[cIndex].isZeroed = true;
@@ -225,12 +225,12 @@ public:
 
     void finalize() {
         if (rank == 0) {
-            memberships = std::vector<uint64>(dataset.size(), 0);
+            memberships = std::vector<uint32>(dataset.size(), 0);
         }
 
         // Gather local memberships [Optional: root could aswell calculate all the memberships]
-        MPI_Gatherv(localMemberships.data(), receiveCount, MPI_UNSIGNED_LONG_LONG,
-                    memberships.data(), sendCounts.data(), displacements.data(), MPI_UNSIGNED_LONG_LONG,
+        MPI_Gatherv(localMemberships.data(), receiveCount, MPI_UNSIGNED,
+                    memberships.data(), sendCounts.data(), displacements.data(), MPI_UNSIGNED,
                     0, MPI_COMM_WORLD);
     }
 
