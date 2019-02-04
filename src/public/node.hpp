@@ -29,6 +29,8 @@
                                              std::plus<int32>())) \
                     initializer(omp_priv = omp_orig)
 
+#define likely(x)       __builtin_expect((x),1)
+#define unlikely(x)     __builtin_expect((x),0)
 
 // TODO
 // -> separate interface
@@ -208,8 +210,8 @@ public:
             reduction(reducePointVectors : newCentroids)
             for (uint64 i = 0; i < gatherLocalCentroids.size(); i++) {
                 LocalCentroid& l = gatherLocalCentroids[i];
-                if (l.isZeroed) contributions[i % k] -= 1;
-                newCentroids[i % k] += l.point;
+                if (unlikely(l.isZeroed)) contributions[i % k] -= 1;
+                else newCentroids[i % k] += l.point;
             }
 
             // #pragma omp parallel for schedule(static)

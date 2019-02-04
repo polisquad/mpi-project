@@ -31,7 +31,7 @@ MPI_Datatype createPointDataType() {
     types[0] = MPI_FLOAT;
     blockCounts[0] = 2;
 
-    MPI_Type_struct(1, blockCounts, offsets, types, &pointType);
+    MPI_Type_create_struct(1, blockCounts, offsets, types, &pointType);
     MPI_Type_commit(&pointType);
     return pointType;
 };
@@ -52,7 +52,7 @@ MPI_Datatype createLocalCentroidDataType(MPI_Datatype pointType) {
     types[1] = MPI_CXX_BOOL;
     blockCounts[1] = 1;
 
-    MPI_Type_struct(2, blockCounts, offsets, types, &localCentroidType);
+    MPI_Type_create_struct(2, blockCounts, offsets, types, &localCentroidType);
     MPI_Type_commit(&localCentroidType);
     return localCentroidType;
 };
