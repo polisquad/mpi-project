@@ -79,4 +79,15 @@ namespace MPI
 
 	/// Returns ref to local device
 	class Device * getLocalDevice(MPI_Comm communicator = MPI_COMM_WORLD);
+
+	/**
+	 * Sets value to appropariate MPI data type enum
+	 * @{
+	 */
+	template<typename T>					struct DataType						{ enum {value = MPI_BYTE}; };
+	template<>								struct DataType<int32>				{ enum {value = MPI_INT}; };
+	template<>								struct DataType<float32>			{ enum {value = MPI_FLOAT}; };
+	template<>								struct DataType<float64>			{ enum {value = MPI_DOUBLE}; };
+	template<>								struct DataType<uint32>				{ enum {value = MPI_UNSIGNED}; };
+	/// @}
 }

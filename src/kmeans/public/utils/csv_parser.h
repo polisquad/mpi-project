@@ -64,9 +64,10 @@ public:
 	FORCE_INLINE uint64 getColCount() const { return cols; }
 
 	/// Parse values
-	FORCE_INLINE Array<Vec<T>> parse(uint64 start = 1, uint64 end = -1)
+	FORCE_INLINE std::vector<Vec<T>> parse(uint64 start = 1, uint64 end = -1)
 	{
-		Array<Vec<T>> out(rows);
+		std::vector<Vec<T>> out;
+		out.reserve(rows);
 
 		uint64 i = 0;
 		char line[256];
@@ -74,8 +75,9 @@ public:
 		while (fgets(line, 256, fp))
 		{
 			if (i >= start & i < end)
-				out.push(parseRow(line));
+				out.push_back(parseRow(line));
 
+			// Next row
 			++i;
 		}
 

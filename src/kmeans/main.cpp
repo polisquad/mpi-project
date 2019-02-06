@@ -1,78 +1,61 @@
-#include "core_types.h"
-#include "utils/command_line.h"
-#include "utils/csv_parser.h"
-#include "utils/csv_writer.h"
-#include "parallel/mpi_globals.h"
-#include "parallel/mpi_device.h"
-#include "containers/aligned_array.h"
-#include "alg/data.h"
-#include "alg/kmeans.h"
-#include "alg/vector.h"
+#include "alg/node.h"
 
-CommandLine * gCommandLine;
+#include <chrono>
 
-int main(int32 argc, char ** argv)
+int main(int argc, char **argv)
 {
-	srand(clock());
+	// Init command line
+	CommandLine gCommandLine(argc, argv);
 
-	// Parse command line
-	gCommandLine = new CommandLine(argc, argv);
-	
-#if 0
-	#if 0
-		// Data points vector
-		Array<Point2<float32>> dataPoints;
+    // TODO
+    // -> generalize types(both float32 and float64)
+    // -> generalize to n-dimensional data point
+    // -> benchmark in LAN with and without -03
+    MPI::init(&argc, &argv);
 
-		uint32 numDataPoints = 512 * 1024;
-		uint32 numClusters = 24;
+    // these are read from command line args
+    uint32 k = 5;
+    uint32 maxNumEpochs = 100;
+    float32 tol = 1e-4;
 
-		for (uint32 i = 0; i < numDataPoints; ++i)
-			dataPoints.push(Point2<float32>(
-				rand() / (float64)RAND_MAX * 10.f,
-				rand() / (float64)RAND_MAX * 10.f
-			));
-		// Data points vector
-		Array<Vector<float32, 2>> dataPoints;
-	#elif 1	
-		uint32 numDataPoints = 512 * 1024;
-		uint32 numClusters = 24;
-		
-		for (uint32 i = 0; i < numDataPoints; ++i)
-			dataPoints.push(Vector<float32, 2>(
-				8,
-				rand() / (float64)RAND_MAX * 10.f
-			));
-	#endif
-#endif
+	gCommandLine.getValue("--num-clusters", k);
+	gCommandLine.getValue("--max-iter", maxNumEpochs);
+	gCommandLine.getValue("--tolerance", tol);
 
-	// Read from file
-	std::string inputFilename, outputFilename;
-	if (CommandLine::get().getValue("input", inputFilename))
-	{
-		// Parse input
-		CsvParser<float32> parser(inputFilename);
-		auto dataPoints = parser.parse(1); // Pop header
+    Node thisNode(k, tol);
 
-		// Get number of clusters
-		uint32 numClusters = 2;
-		CommandLine::get().getValue("--clusters", numClusters);
+    // Generate dummy dataset
+    //writeDatasetToFile(generateDummyDataset());
 
-		MPI::init();
+    // Assign equally data points to each machine
+    thisNode.loadPoints();
 
-		srand(clock());
+    // Set initial centroids
+    thisNode.selectRandomCentroids();
 
-		auto groups = clusterize(dataPoints, numClusters);
+    // Receive Initial centroids
+    thisNode.receiveGlobalCentroids();
 
-		MPI::shutdown();
+    for (uint32 epoch = 1; epoch <= maxNumEpochs; epoch++) {
+        // Compute memberships of each point and compute local centroids according to local membership view
+        thisNode.optimize();
 
-		if (CommandLine::get().getValue("output", outputFilename))
-		{
-			CsvWriter<float32> writer(outputFilename);
-			writer.write(groups);
-		}
-	}
-	else
-		fprintf(stderr, "No input file specified\n");
+        // Compute new centroids
+        thisNode.updateGlobal(epoch);
 
-	return 0;
+        // Receive current centroids and loss from previous epoch
+        thisNode.receiveGlobal(epoch);
+
+        // Check convergence
+        /* if (thisNode.hasConverged()) {
+            break;
+        } */
+    }
+
+    thisNode.finalize();
+    thisNode.writeResults();
+
+    MPI::shutdown();
+
+    return 0;
 }

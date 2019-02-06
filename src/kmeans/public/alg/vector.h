@@ -8,8 +8,12 @@
  * A variable-length vector
  */
 template<typename T, uint32 N>
-struct VectorBase
+struct Vector
 {
+public:
+	/// MPI data type
+	static MPI_Datatype type;
+
 protected:
 	/// Data buffer
 	T buffer[N];
@@ -19,12 +23,12 @@ protected:
 
 public:
 	/// Default cosntructor
-	explicit FORCE_INLINE VectorBase() :
+	explicit FORCE_INLINE Vector() :
 		buffer{},
 		size(N) {}
 
 	/// Initialization constructor
-	explicit FORCE_INLINE VectorBase(uint32 _size, const T * values = nullptr) :
+	explicit FORCE_INLINE Vector(uint32 _size, const T * values = nullptr) :
 		size(_size > N ? N : _size)
 	{
 		// Initialize buffer
@@ -36,7 +40,7 @@ public:
 	}
 
 	/// Scalar constructor
-	FORCE_INLINE VectorBase(uint32 _size, typename ConstRef<T>::Type s) :
+	FORCE_INLINE Vector(uint32 _size, typename ConstRef<T>::Type s) :
 		size(_size > N ? N : _size)
 	{
 		// Initialize buffer
@@ -53,38 +57,6 @@ public:
 
 	/// Resize vector
 	FORCE_INLINE void resize(uint32 _size) { size = _size > N ? N : _size; }
-};
-
-#include "templates/simd.h"
-
-/**
- * Variable-length vector type compliant
- * with cluster data type requirements
- */
-template<typename T, uint32 N, bool = hasVectorIntrinsics(T, 4) & hasVectorIntrinsics(T, 8)>
-struct Vector : public VectorBase<T, N>
-{
-public:
-	/// Inherit base class constructors
-	using VectorBase<T, N>::VectorBase;
-};
-
-/**
- * Vector intrisics specialization
- */
-template<typename T, uint32 N>
-struct GCC_PACK(32) Vector<T, N, true> : public VectorBase<T, N>
-{
-public:
-	/// Vector intrinsics type
-	using VecOps	= Simd::Vector<T, 4>;
-	using DVecOps	= Simd::Vector<T, 8>;
-	using VecT		= typename VecOps::Type;
-	using DVecT		= typename DVecOps::Type;
-
-public:
-	/// Inherit base class constructors
-	using VectorBase<T, N>::VectorBase;
 
 protected:
 	/**
@@ -99,48 +71,68 @@ protected:
 	 */
 	static FORCE_INLINE T * addBuffer(T * b1, const T * b2, uint32 size)
 	{
-		uint32 offset = 0;
-		for (; size >= 8; size -= 8, offset += 8)
-			DVecOps::store(b1 + offset, DVecOps::add(DVecOps::load(b1 + offset), DVecOps::load(b2 + offset)));
-		
-		for (; size >= 4; size -= 4, offset += 4)
-			VecOps::store(b1 + offset, VecOps::add(VecOps::load(b1 + offset), VecOps::load(b2 + offset)));
-		
-		for (; size > 0; --size, ++offset)
-			b1[offset] += b2[offset];
+		// Manual unroll
+		T * out = b1;
+		for (; size >= 4; size -= 4, b1 += 4, b2 += 4)
+		{
+			b1[0] += b2[0],
+			b1[1] += b2[1],
+			b1[2] += b2[2],
+			b1[3] += b2[3];
+		}
+		for (; size >= 2; size -= 2, b1 += 2, b2 += 2)
+		{
+			b1[0] += b2[0],
+			b1[1] += b2[1];
+		}
+		if (size)
+			b1[0] += b2[0];
 
-
-		return b1;
+		return out;
 	}
 
 	static FORCE_INLINE T * subBuffer(T * b1, const T * b2, uint32 size)
 	{
-		uint32 offset = 0;
-		for (; size >= 8; size -= 8, offset += 8)
-			DVecOps::store(b1 + offset, DVecOps::sub(DVecOps::load(b1 + offset), DVecOps::load(b2 + offset)));
-		
-		for (; size >= 4; size -= 4, offset += 4)
-			VecOps::store(b1 + offset, VecOps::sub(VecOps::load(b1 + offset), VecOps::load(b2 + offset)));
-		
-		for (; size > 0; --size, ++offset)
-			b1[offset] -= b2[offset];
-		
-		return b1;
+		// Manual unroll
+		T * out = b1;
+		for (; size >= 4; size -= 4, b1 += 4, b2 += 4)
+		{
+			b1[0] -= b2[0],
+			b1[1] -= b2[1],
+			b1[2] -= b2[2],
+			b1[3] -= b2[3];
+		}
+		for (; size >= 2; size -= 2, b1 += 2, b2 += 2)
+		{
+			b1[0] -= b2[0],
+			b1[1] -= b2[1];
+		}
+		if (size)
+			b1[0] -= b2[0];
+
+		return out;
 	}
 
 	static FORCE_INLINE T * mulBuffer(T * b1, T s, uint32 size)
 	{
-		uint32 offset = 0;
-		for (; size >= 8; size -= 8, offset += 8)
-			DVecOps::store(b1 + offset, DVecOps::mul(DVecOps::load(b1 + offset), DVecOps::load(s)));
-		
-		for (; size >= 4; size -= 4, offset += 4)
-			VecOps::store(b1 + offset, VecOps::mul(VecOps::load(b1 + offset), VecOps::load(s)));
-		
-		for (; size > 0; --size, ++offset)
-			b1[offset] *= s;
-		
-		return b1;
+		// Manual unroll
+		T * out = b1;
+		for (; size >= 4; size -= 4, b1 += 4)
+		{
+			b1[0] *= s,
+			b1[1] *= s,
+			b1[2] *= s,
+			b1[3] *= s;
+		}
+		for (; size >= 2; size -= 2, b1 += 2)
+		{
+			b1[0] *= s,
+			b1[1] *= s;
+		}
+		if (size)
+			b1[0] *= s;
+
+		return out;
 	}
 	/// @}
 
@@ -148,12 +140,12 @@ protected:
 	static FORCE_INLINE T haddBuffer(const T * b, uint32 size)
 	{
 		T out = T(0);
-		uint32 offset = 0;
-		for (; size >= 4; size -= 4, offset += 4)
-			out += b[offset] + b[offset + 1] + b[offset + 2] + b[offset + 3];
-		
-		for (; size > 0; --size, ++offset)
-			out += b[offset];
+		for (; size >= 4; size -= 4, b += 4)
+			out += b[0] + b[1] + b[2] + b[3];
+		for (; size >= 2; size -= 2, b += 2)
+			out += b[0] + b[1];
+		if (size)
+			out += b[0];
 		
 		return out;
 	}
@@ -165,15 +157,20 @@ protected:
 	static inline T normBuffer(const T * b1, const T * b2, uint32 size)
 	{
 		T out = T(0);
-		uint32 offset = 0;
-		for (; size >= 4; size -= 4, offset += 4)
-			out += square(b1[offset] - b2[offset]),
-			out += square(b1[offset + 1] - b2[offset + 1]),
-			out += square(b1[offset + 2] - b2[offset + 2]),
-			out += square(b1[offset + 3] - b2[offset + 3]);
-		
-		for (; size > 0; --size, ++offset)
-			out += square(b1[offset] - b2[offset]);
+		for (; size >= 4; size -= 4, b1 += 4, b2 += 4)
+		{
+			out += square(b1[0] - b2[0]),
+			out += square(b1[1] - b2[1]),
+			out += square(b1[2] - b2[2]),
+			out += square(b1[3] - b2[3]);
+		}
+		for (; size >= 2; size -= 2, b1 += 2, b2 += 2)
+		{
+			out += square(b1[0] - b2[0]),
+			out += square(b1[1] - b2[1]);
+		}
+		if (size)
+			out += square(b1[0] - b2[0]);
 		
 		return out;
 	}
@@ -265,7 +262,21 @@ public:
 		const uint32 minSize = this->size < v.size ? this->size : v.size;
 		return sqrtf(normBuffer(this->buffer, v.buffer, minSize));
 	}
+
+	/// Create MPI data type
+	static FORCE_INLINE void createMpiDataType()
+	{
+		MPI_Datatype types[1]	= {MPI::DataType<T>::value};
+		int32 blockCounts[1]	= {N};
+		MPI_Aint offsets[1]		= {0};
+
+		MPI_Type_create_struct(1, blockCounts, offsets, types, &type);
+		MPI_Type_commit(&type);
+	}
 };
+
+template<typename T, uint32 N>
+MPI_Datatype Vector<T, N>::type;
 
 /// Default max size
 template<typename T>

@@ -98,14 +98,14 @@ namespace MPI
 
 		/// Broadcast a trivial payload to all hosts listening on communicator
 		template<typename T>
-		FORCE_INLINE bool broadcast(typename ConstRef<T>::Type obj)
+		FORCE_INLINE bool broadcast(typename ConstRef<T>::Type obj, int32 root = -1)
 		{
-			tryStatus( MPI_Bcast((T*)&obj, sizeof(T), MPI_BYTE, id, communicator), status)
+			tryStatus(MPI_Bcast((T*)&obj, sizeof(T), MPI_BYTE, root != -1 ? root : id, communicator), status)
 
 			if (status == MPI_SUCCESS)
 			{
 				// Increment number of messages sent
-				++numSent;
+				root == id ? numSent += getCommSize() - 1 : ++numReceived;
 				return true;
 			}
 
@@ -114,14 +114,14 @@ namespace MPI
 
 		/// Broadcast a static buffer to all hosts listening on communicator
 		template<typename T>
-		FORCE_INLINE bool broadcast(const T * buffer, uint32 count)
+		FORCE_INLINE bool broadcast(T * buffer, uint32 count, int32 root = -1)
 		{
-			tryStatus(MPI_Bcast((T*)buffer, count * sizeof(T), MPI_BYTE, id, communicator), status)
+			tryStatus(MPI_Bcast((T*)buffer, count * sizeof(T), MPI_BYTE, root != -1 ? root : id, communicator), status)
 
 			if (status == MPI_SUCCESS)
 			{
 				// Increment number of messages sent
-				numSent += getCommSize();
+				root == id ? numSent += getCommSize() - 1 : ++numReceived;
 				return true;
 			}
 
@@ -151,38 +151,6 @@ namespace MPI
 		}
 		template<typename T>
 		FORCE_INLINE bool receive(T * buffer, uint32 count, int32 src) { return receive(buffer, count, src, numReceived); }
-
-		/// Receives a trivial object broadcast
-		template<typename T>
-		FORCE_INLINE bool receiveBroadcast(T & obj, uint32 root = 0)
-		{
-			tryStatus(MPI_Bcast(&obj, sizeof(T), MPI_BYTE, root, communicator), status)
-
-			if (status == MPI_SUCCESS)
-			{
-				// Increment number of messages sent
-				++numReceived;
-				return true;
-			}
-
-			return false;
-		}
-
-		/// Receives a static buffer broadcast
-		template<typename T>
-		FORCE_INLINE bool receiveBroadcast(T * buffer, uint32 count, uint32 root = 0)
-		{
-			tryStatus(MPI_Bcast(buffer, count * sizeof(T), MPI_BYTE, root, communicator), status)
-
-			if (status == MPI_SUCCESS)
-			{
-				// Increment number of messages sent
-				++numReceived;
-				return true;
-			}
-
-			return false;
-		}
 		/// @}
 
 		/// Multi-broadcast method

@@ -18,7 +18,7 @@ CommandLine::CommandLine(int32 argc, char ** argv)
 			if (
 				  arg == "--init"
 				| arg == "--mpi-mode"
-				| arg == "--clusters"
+				| arg == "--num-clusters"
 				| arg == "--max-iter"
 				| arg == "--convergence-factor"
 			)
@@ -44,7 +44,7 @@ CommandLine::CommandLine(int32 argc, char ** argv)
 			// output?
 			auto outputIt = args.find("output");
 			if (outputIt == args.end())
-				args.insert(std::make_pair("input", arg));
+				args.insert(std::make_pair("output", arg));
 		}
 	}
 }

@@ -8,10 +8,8 @@ in_file = os.path.join(data_path, "target.csv")
 out_file = os.path.join(data_path, "out.csv")
 
 
-def parse_2d(file=in_file):
-
+def parse_2d(file=out_file):
     with open(file) as f:
-
         lines = f.readlines()
         x1s = []
         x2s = []
@@ -27,7 +25,7 @@ def parse_2d(file=in_file):
 
 
 def plot2d(x1s, x2s, colors):
-    plt.scatter(x1s, x2s, c=colors, marker=".")
+    plt.scatter(x1s, x2s, s=[50 for _ in range(len(x1s))], c=colors, marker="o")
     plt.show()
 
 

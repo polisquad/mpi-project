@@ -26,7 +26,7 @@ public:
 	}
 
 	/// Write values
-	int32 write(const Array<Vec<T>> & data)
+	int32 write(const std::vector<Vec<T>> & data)
 	{
 		if (!fp) return -1;
 
@@ -41,12 +41,13 @@ public:
 	}
 
 	/// Write clusterization results
-	int32 write(const Array<Array<Vec<T>>, alignof(Vec<T>)> & groups)
+	/// @{
+	int32 write(const std::vector<std::vector<Vec<T>>> & groups)
 	{
 		if (!fp) return -1;
 
 		int32 rows = 0;
-		for (uint32 k = 0; k < groups.getSize(); ++k)
+		for (uint32 k = 0; k < groups.size(); ++k)
 		{
 			for (const auto & point : groups[k])
 			{
@@ -57,6 +58,17 @@ public:
 
 		return rows;
 	}
+	int32 write(const std::vector<Vec<T>> & dataset, const std::vector<uint32> & memberships)
+	{
+		if (!fp) return -1;
+
+		int32 i = 0;
+		for (; i < dataset.size(); ++i)
+			writeRow(dataset[i], memberships[i]);
+
+		return i;
+	}
+	/// @}
 
 protected:
 	/// Write single row

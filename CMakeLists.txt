@@ -3,21 +3,29 @@ cmake_minimum_required(VERSION 3.12)
 # Project setup ---------------------------------
 project(kmeans)
 
-## Platform setup
-include(CMakePlatform.cmake)
 
-## Versioning
-set(SGL_VERSION_MAJOR 0)
-set(SGL_VERSION_MINOR 0)
-set(SGL_VERSION_PATCH 0) # Not really using it
+file(GLOB_RECURSE SOURCE_FILES
+        private/*.c
+        private/*.cc
+        private/*.cpp
+		private/*.cxx
+)
 
-## Build type config
-set(CMAKE_CXX_FLAGS_DEBUG			"-DBUILD_DEBUG=1 -ggdb -O0")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO	"-DBUILD_DEVELOPMENT=1 -ggdb -O3")
-set(CMAKE_CXX_FLAGS_RELEASE			"-DBUILD_RELEASE=1 -Ofast")
+file(GLOB_RECURSE HEADER_FILES # CMake doesn't require header files, just to ease editor auto-completion
 
-## Output config
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
+        public/*.h
+        public/*.hpp
+        public/*.tpp
+)
+
+# Basic platform setup --------------------------------
+if(UNIX)
+	add_compile_definitions(PLATFORM_UNIX=1)
+elseif(WIN32)
+	add_compile_definitions(PLATFORM_WINDOWS=1)
+elseif(APPLE)
+	add_compile_definitions(PLATFORM_APPLE=1)
+endif(UNIX)
 
 # Compiler setup --------------------------------
 ## CXX preferences
