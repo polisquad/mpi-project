@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.12)
 project(mpi-project)
 
 ## Platform setup
-include(CMakePlatform.cmake)
+include(cmake/platforms.cmake)
 
 ## Versioning
 set(SGL_VERSION_MAJOR 0)
