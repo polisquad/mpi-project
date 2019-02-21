@@ -93,7 +93,7 @@ public:
 	}
 	
 	/// Import dataset and send points to other nodes
-	FORCE_INLINE void readDataset(const char * filename)
+	FORCE_INLINE void readDataset(const std::string & filename)
 	{
 		if (rank == 0)
 		{
@@ -104,7 +104,7 @@ public:
 	}
 
 	/// @todo Write dataset to disk
-	FORCE_INLINE void writeDataset(const char * filename)
+	FORCE_INLINE void writeDataset(const std::string & filename)
 	{
 
 	}

@@ -12,8 +12,17 @@ template<class T>
 class Singleton
 {
 public:
+	static Singleton * instance;
+
+public:
 	/// Default constructor
-	FORCE_INLINE Singleton() = default;
+	FORCE_INLINE Singleton()
+	{
+		if (instance == nullptr)
+			instance = this;
+		else
+			/* Fail */;
+	}
 
 private:
 	/// Copy constructor, removed
@@ -23,16 +32,18 @@ private:
 	Singleton & operator=(const Singleton&) = delete;
 
 public:
-	/// Returns ref to global instance
-	static FORCE_INLINE T & get()
-	{
-		static T instance;
-		return instance;
-	}
-
 	/// Returns pointer to global instance
 	static FORCE_INLINE T * getPtr()
 	{
-		return &get();
+		return reinterpret_cast<T*>(instance);
+	}
+
+	/// Returns ref to global instance
+	static FORCE_INLINE T & get()
+	{
+		return *getPtr();
 	}
 };
+
+template<typename T>
+Singleton<T> * Singleton<T>::instance = nullptr;

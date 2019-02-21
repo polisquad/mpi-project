@@ -4,6 +4,7 @@
 #include "containers/point.h"
 #include "containers/cluster.h"
 #include "mpi/node.h"
+#include "utils/command_line.h"
 
 int main(int32 argc, char ** argv)
 {
@@ -14,13 +15,27 @@ int main(int32 argc, char ** argv)
 		Node<float32> node;
 
 		// Read dataset
-		node.readDataset("data/in.csv");
+		{
+			std::string filename;
+			if (!CommandLine::get().getValue("input", filename))
+			{
+				// An input is required, otherwise execution fails
+				fprintf(stderr, "Usage: mpi-project input [output] [options]\n");
+				return 1;
+			}
+
+			node.readDataset(filename);
+		}
 
 		// Run algorithm
 		node.run();
 
 		// Write output file
-		node.writeDataset("data/out.csv");
+		{
+			std::string filename;
+			if (CommandLine::get().getValue("output", filename));
+				node.writeDataset("data/out.csv");
+		}
 	}
 
 	MPI::shutdown();
