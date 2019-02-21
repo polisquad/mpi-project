@@ -33,6 +33,12 @@ public:
 	FORCE_INLINE const T &	operator[](uint32 i) const	{ return data[i]; }
 	/// @}
 
+	/// Returns point size
+	FORCE_INLINE uint32 getNum() const
+	{
+		return size;
+	}
+
 protected:
 	/// Computes the squared distance between two scalars
 	static FORCE_INLINE T dist2(typename ConstRef<T>::Type s1, typename ConstRef<T>::Type s2)

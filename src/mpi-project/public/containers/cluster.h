@@ -78,8 +78,11 @@ public:
 	/// Randomly pick k centroids
 	static std::vector<Cluster> initRandom(const std::vector<T> & dataPoints, uint32 numClusters)
 	{
-		std::vector<Cluster> clusters(numClusters);
+		std::vector<Cluster> clusters;
 		const uint32 numDataPoints = dataPoints.size();
+
+		// Init clusters
+		clusters.reserve(numClusters);
 
 		// Check that num of data points is sufficient
 		if (numDataPoints <= numClusters)
@@ -103,7 +106,7 @@ public:
 			// Pick random until no duplicate
 			do
 			{
-				uint32 idx = rand() % numDataPoints;
+				idx = rand() % numDataPoints;
 
 				for (uint32 k = 0; k < i & !bDuplicate; ++k)
 					if (pick[k] == idx) bDuplicate = true;
@@ -115,6 +118,7 @@ public:
 			clusters.push_back(cluster);
 		}
 
+		delete[] pick;
 		return clusters;
 	}
 

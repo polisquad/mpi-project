@@ -102,6 +102,8 @@ protected:
 			// Add to out vector
 			out[i++] = val;
 		} while (*(buffer++) == ',' && i < cols);
+
+		return out;
 	}
 
 	/// Parse value

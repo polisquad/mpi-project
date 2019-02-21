@@ -44,7 +44,7 @@ protected:
 	std::vector<cluster> clusters;
 
 	/// Node local vector of memberships
-	std::vector<uint32> memberships;
+	std::vector<int32> memberships;
 
 public:
 	/// Default constructor
@@ -108,6 +108,9 @@ public:
 			// Create parser
 			CsvParser<T> parser(filename);
 			globalDataset = parser.parse();
+
+			// Init memberships
+			memberships.resize(globalDataset.size());
 		}
 
 		loadDataset();
@@ -116,7 +119,11 @@ public:
 	/// @todo Write dataset to disk
 	FORCE_INLINE void writeDataset(const std::string & filename)
 	{
-
+		if (rank == 0)
+		{
+			CsvWriter<T> writer(filename);
+			writer.write(globalDataset, memberships);
+		}
 	}
 
 	/// Load dataset on other nodes
@@ -158,7 +165,46 @@ protected:
 	/// @todo Optimization routine
 	void optimize()
 	{
-		/*  */
+		const uint32 numClusters = clusters.size();
+		const uint32 numDataPoints = localDataset.size();
+
+		// Computed centroid sums
+		std::vector<point> centroids(numClusters);
+		std::vector<float32> weights(numClusters);
+
+		//#pragma omp parallel for
+		for (uint64 i = 0; i < numDataPoints; ++i)
+		{
+			const auto & point = localDataset[i];
+
+			// Take dist of first cluster
+			uint32 clusterIdx = 0;
+			float32 minDist = clusters[0].getDistance(point);
+
+			// Find closest cluster
+			for (uint32 k = 1; k < numClusters; ++k)
+			{
+				float32 dist = clusters[k].getDistance(point);
+				if (dist < minDist) dist = minDist, clusterIdx = k;
+			}
+
+			centroids[clusterIdx] += point;
+			weights[clusterIdx] += 1.f;
+
+			// Update local membership
+			memberships[i] = clusterIdx;
+		}
+
+		// Update local clusters
+		for (uint32 k = 0; k < numClusters; ++k)
+			clusters[k].addWeight(centroids[k], weights[k]);
+	}
+
+	/// Update local clusters
+	FORCE_INLINE void updateLocalClusters()
+	{
+		// @todo Broadcast updated clusters
+		MPI_Bcast(clusters.data(), clusters.size(), cluster::type, 0, communicator);
 	}
 
 	/// Gather remote clusters and fuse with global clusters
@@ -185,16 +231,9 @@ protected:
 				clusters[i % numClusters].fuse(remoteClusters[i]);
 			
 			// Commit changes
-			for (uint32 i = 0; i < remoteClusters.size(); ++i)
+			for (uint32 i = 0; i < clusters.size(); ++i)
 				clusters[i].commit();
 		}
-	}
-
-	/// Update local clusters
-	FORCE_INLINE void updateLocalClusters()
-	{
-		// @todo Broadcast updated clusters
-		MPI_Bcast(clusters.data(), clusters.size(), MPI_AINT, 0, communicator);
 	}
 
 	/// Get data splits
