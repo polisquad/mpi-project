@@ -2,6 +2,7 @@
 
 #include "core_types.h"
 #include "templates/const_ref.h"
+#include "mpi/mpi_globals.h"
 
 #define POINT_MAX_SIZE 8
 
@@ -11,7 +12,7 @@
  * A multi-dimensional point
  */
 template<typename T, uint32 N>
-class Point
+class Point : public MPI::DataType<Point<T, N>>
 {
 protected:
 	/// Point data
@@ -60,6 +61,8 @@ protected:
 
 	/**
 	 * Buffer-buffer arithm operations
+	 * 
+	 * Stores result in first buffer operand
 	 * 
 	 * @param [in] b1 dest buffer
 	 * @param [in] b2 source buffer
@@ -162,6 +165,34 @@ protected:
 	}
 	/// @}
 
+	/**
+	 * Buffer-scalar operations
+	 * 
+	 * Stores result in buffer operand
+	 * 
+	 * @param [in] b buffer operand
+	 * @param [in] s scalar operand
+	 * @{
+	 */
+	static FORCE_INLINE void mul(T * b, typename ConstRef<T>::Type s, uint32 n)
+	{
+		T * it = b;
+
+		for (; it <= b + n - 8; it += 8)
+			it[0] *= s, it[1] *= s,
+			it[2] *= s, it[3] *= s,
+			it[4] *= s, it[5] *= s,
+			it[6] *= s, it[7] *= s;
+		for (; it <= b + n - 4; it += 4)
+			it[0] *= s, it[1] *= s,
+			it[2] *= s, it[3] *= s;
+		for (; it <= b + n - 2; it += 2)
+			it[0] *= s, it[1] *= s;
+		if (it != b + n)
+			it[0] *= s;
+	}
+	/// @}
+
 public:
 	/// Get point squared size
 	T getSquaredSize() const
@@ -205,7 +236,21 @@ public:
 	/// @}
 
 	/**
-	 * Point-point arithemtic operations
+	 * Point-scalar compound assignments
+	 * 
+	 * @param [in] s scalar operand
+	 * @return self
+	 * @{
+	 */
+	Point & operator*=(typename ConstRef<T>::Type s)
+	{
+		mul(data, s, size);
+		return *this;
+	}
+	/// @}
+
+	/**
+	 * Point-point arithmetic operations
 	 * 
 	 * @param [in] p point operand
 	 * @return new point
@@ -224,11 +269,45 @@ public:
 	/// @}
 
 	/**
+	 * Point-scalar arithmetic operations
+	 * 
+	 * @param [in] s scalar operand
+	 * @return new point
+	 * @{
+	 */
+	Point operator*(typename ConstRef<T>::Type s)
+	{
+		Point r(*this);
+		
+		mul(r.data, s, r.size);
+		return r;
+	}
+	/// @}
+
+	/**
 	 * Print point
 	 * 
 	 * @param out out stream
 	 */
 	FORCE_INLINE void print(FILE * out = stdout);
+
+	//////////////////////////////////////////////////
+	// MPI Interface
+	//////////////////////////////////////////////////
+	
+	/// Creates the MPI datatype, if not already created
+	static FORCE_INLINE MPI_Datatype createMpiType()
+	{
+		const int32 blockSize[] = {N};
+		const MPI_Aint blockDisplacement[] = {0};
+		const MPI_Datatype blockType[] = {MPI::DataType<T>::type};
+
+		MPI_Type_create_struct(1, blockSize, blockDisplacement, blockType, &Point::type);
+
+		// Commit type
+		MPI_Type_commit(&Point::type);
+		return Point::type;
+	}
 };
 
 template<>

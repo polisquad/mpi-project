@@ -1,14 +1,13 @@
 # Build and temp files --------------------------
 /build/
 /temp/
-/temp
-temp
-/temp.*
 temp.*
+/data/
 
 # Binaries --------------------------------------
 /bin/
 /dist/
+/.env/
 
 # Editor files ----------------------------------
 ### VS Code ###

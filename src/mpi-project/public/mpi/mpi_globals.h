@@ -54,34 +54,34 @@ namespace MPI
 		return MPI_Wtick();
 	}
 
-	/// Returns ref to local device
-	class Device * getLocalDevice(MPI_Comm communicator = MPI_COMM_WORLD);
-} /// MPI
-
-namespace MPI
-{
 	/**
-	 * Compile-time templated MPI data types
-	 * @{
+	 * @struct DataType mpi/mpi_globals.h
+	 * 
+	 * Templated MPI data types
 	 */
-	template<typename T>	struct DataType			{};
-
-	template<>				struct DataType<byte>	{ enum {value = MPI_BYTE}; };
-	template<>				struct DataType<int8>	{ enum {value = MPI_INT8_T}; };
-	template<>				struct DataType<int16>	{ enum {value = MPI_INT16_T}; };
-	template<>				struct DataType<int32>	{ enum {value = MPI_INT32_T}; };
-	template<>				struct DataType<int64>	{ enum {value = MPI_INT64_T}; };
-
-	template<>				struct DataType<ubyte>	{ enum {value = MPI_UNSIGNED_CHAR}; };
-	template<>				struct DataType<uint8>	{ enum {value = MPI_UINT8_T}; };
-	template<>				struct DataType<uint16>	{ enum {value = MPI_UINT16_T}; };
-	template<>				struct DataType<uint32>	{ enum {value = MPI_UINT32_T}; };
-	template<>				struct DataType<uint64>	{ enum {value = MPI_UINT64_T}; };
-
-	template<>				struct DataType<float32>	{ enum {value = MPI_FLOAT}; };
-	template<>				struct DataType<float64>	{ enum {value = MPI_DOUBLE}; };
-	template<>				struct DataType<float128>	{ enum {value = MPI_LONG_DOUBLE}; };
-
-	template<>				struct DataType<char>	{ enum {value = MPI_CHAR}; };
-	/// @}
+	template<typename T>
+	struct DataType
+	{
+		/// MPI data type
+		static MPI_Datatype type;
+	};
 } /// MPI
+
+template<typename T>
+MPI_Datatype MPI::DataType<T>::type = MPI_AINT;
+
+template<>	MPI_Datatype MPI::DataType<int8>::type;
+template<>	MPI_Datatype MPI::DataType<int16>::type;
+template<>	MPI_Datatype MPI::DataType<int32>::type;
+template<>	MPI_Datatype MPI::DataType<int64>::type;
+
+template<>	MPI_Datatype MPI::DataType<uint8>::type;
+template<>	MPI_Datatype MPI::DataType<uint16>::type;
+template<>	MPI_Datatype MPI::DataType<uint32>::type;
+template<>	MPI_Datatype MPI::DataType<uint64>::type;
+
+template<>	MPI_Datatype MPI::DataType<float32>::type;
+template<>	MPI_Datatype MPI::DataType<float64>::type;
+template<>	MPI_Datatype MPI::DataType<float128>::type;
+
+template<>	MPI_Datatype MPI::DataType<char>::type;

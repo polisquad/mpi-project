@@ -44,3 +44,23 @@ bool MPI::shutdown()
 
 	return !bMPIInitialized;
 }
+
+//////////////////////////////////////////////////
+// Pre-defined MPI data types
+//////////////////////////////////////////////////
+
+template<>	MPI_Datatype MPI::DataType<int8>::type	= MPI_INT8_T;
+template<>	MPI_Datatype MPI::DataType<int16>::type	= MPI_INT16_T;
+template<>	MPI_Datatype MPI::DataType<int32>::type	= MPI_INT32_T;
+template<>	MPI_Datatype MPI::DataType<int64>::type	= MPI_INT64_T;
+
+template<>	MPI_Datatype MPI::DataType<uint8>::type		= MPI_UINT8_T;
+template<>	MPI_Datatype MPI::DataType<uint16>::type	= MPI_UINT16_T;
+template<>	MPI_Datatype MPI::DataType<uint32>::type	= MPI_UINT32_T;
+template<>	MPI_Datatype MPI::DataType<uint64>::type	= MPI_UINT64_T;
+
+template<>	MPI_Datatype MPI::DataType<float32>::type	= MPI_FLOAT;
+template<>	MPI_Datatype MPI::DataType<float64>::type	= MPI_DOUBLE;
+template<>	MPI_Datatype MPI::DataType<float128>::type	= MPI_LONG_DOUBLE;
+
+template<>	MPI_Datatype MPI::DataType<char>::type	= MPI_CHAR;

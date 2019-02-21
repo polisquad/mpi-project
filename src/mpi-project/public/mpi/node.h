@@ -51,6 +51,10 @@ public:
 	{
 		// Get rank
 		MPI_Comm_rank(communicator, &rank);
+
+		// Create required data types
+		point::createMpiType();
+		cluster::createMpiType();
 	}
 
 	//////////////////////////////////////////////////
@@ -84,7 +88,7 @@ public:
 			optimize();
 
 			// Gather remote centroids and update global
-			updateClusters();
+			updateGlobalClusters();
 		}
 	}
 	
@@ -99,13 +103,17 @@ public:
 		loadDataset();
 	}
 
-	/// Write dataset to disk
-	FORCE_INLINE void writeDataset(const char * filename);
+	/// @todo Write dataset to disk
+	FORCE_INLINE void writeDataset(const char * filename)
+	{
+
+	}
 
 	/// Load dataset on other nodes
 	void loadDataset()
 	{
-		const uint32 commSize = MPI::getCommSize(communicator);
+		const uint32 numDataPoints	= localDataset.size();
+		const uint32 commSize		= MPI::getCommSize(communicator);
 
 		// Get data chunks
 		int32 receiveCount = 0;
@@ -113,14 +121,14 @@ public:
 		
 		// Tell each node how many points it will receive
 		MPI_Scatter(
-			dataChunks.data(), 1, MPI::Datatype<int32>::value,
-			&receiveCount, 1, MPI::Datatype<int32>::value
+			dataChunks.data(), 1, MPI::DataType<int32>::type,
+			&receiveCount, 1, MPI::DataType<int32>::type,
 			0, communicator
 		);
 
 		// Init vectors size
 		localDataset.resize(receiveCount);
-		memberships.resize(receiveCount)
+		memberships.resize(receiveCount);
 
 		// Compute scatterv displacements
 		std::vector<int32> displacements(commSize, 0);
@@ -128,7 +136,7 @@ public:
 			displacements[i] = d;
 
 		// @todo Scatter points among nodes
-		const auto pointDataType = 0;
+		const auto pointDataType = point::type;
 		MPI_Scatterv(
 			globalDataset.data(), dataChunks.data(), displacements.data(), pointDataType,
 			localDataset.data(), receiveCount, pointDataType,
@@ -168,7 +176,7 @@ protected:
 			
 			// Commit changes
 			for (uint32 i = 0; i < remoteClusters.size(); ++i)
-				cluster[i].commit();
+				clusters[i].commit();
 		}
 	}
 
@@ -184,7 +192,7 @@ protected:
 	{
 		// Assign points
 		const uint64 perNode = numDataPoints / numNodes;
-		std::vector chunks(numNodes, perNode);
+		std::vector<int32> chunks(numNodes, perNode);
 
 		// Assign remaining points
 		uint64 remaining = numDataPoints - perNode;

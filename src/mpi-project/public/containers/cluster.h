@@ -2,6 +2,7 @@
 
 #include "core_types.h"
 #include "templates/const_ref.h"
+#include "mpi/mpi_globals.h"
 
 #include <vector>
 
@@ -12,7 +13,7 @@
  * a working cluster setup
  */
 template<typename T>
-class Cluster
+class Cluster : public MPI::DataType<Cluster<T>>
 {
 protected:
 	/// Cluster current centroid
@@ -85,8 +86,7 @@ public:
 		{
 			for (const auto & dataPoint : dataPoints)
 			{
-				Cluster cluster;
-				cluster.reset(dataPoint);
+				Cluster cluster(dataPoint);
 				clusters.push_back(cluster);
 			}
 			
@@ -212,4 +212,22 @@ public:
 		return clusters;
 	}
 	/// @}
+
+	//////////////////////////////////////////////////
+	// MPI Interface
+	//////////////////////////////////////////////////
+	
+	/// Creates the MPI datatype, if not already created
+	static FORCE_INLINE MPI_Datatype createMpiType()
+	{
+		const int32 blockSize[] = {2, 1};
+		const MPI_Aint blockDisplacement[] = {0, offsetof(Cluster, weight)};
+		const MPI_Datatype blockType[] = {MPI::DataType<T>::type, MPI::DataType<float32>::type};
+
+		MPI_Type_create_struct(2, blockSize, blockDisplacement, blockType, &Cluster::type);
+
+		// Commit type
+		MPI_Type_commit(&Cluster::type);
+		return Cluster::type;
+	}
 };
