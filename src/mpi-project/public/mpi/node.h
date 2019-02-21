@@ -5,6 +5,9 @@
 #include "templates/singleton.h"
 #include "containers/point.h"
 #include "containers/cluster.h"
+#include "utils/command_line.h"
+#include "utils/csv_parser.h"
+#include "utils/csv_writer.h"
 
 #include <string>
 #include <vector>
@@ -62,18 +65,23 @@ public:
 	//////////////////////////////////////////////////
 
 	/// Run algorithm
-	FORCE_INLINE void run(/* Node setup */)
+	FORCE_INLINE void run()
 	{
 		// Default values
 		uint32 numClusters = 5;
 		std::string initMethod;
+
+		// Read from command line
+		auto & gCommandLine = CommandLine::get();
+		gCommandLine.getValue("num-clusters", numClusters);
+		gCommandLine.getValue("init-method", initMethod);
 
 		// Compute initial clusters setup
 		if (rank == 0)
 		{
 			/* Read command line */
 			if (initMethod == "furthest")
-				;
+				clusters = cluster::initFurthest(globalDataset, numClusters);
 			else
 				clusters = cluster::initRandom(globalDataset, numClusters);
 		}
@@ -97,7 +105,9 @@ public:
 	{
 		if (rank == 0)
 		{
-			/* @todo Read input file */
+			// Create parser
+			CsvParser<T> parser(filename);
+			globalDataset = parser.parse();
 		}
 
 		loadDataset();
@@ -161,7 +171,7 @@ protected:
 		std::vector<cluster> remoteClusters(commSize * numClusters);
 
 		// @todo Gather remote clusters
-		const auto clusterDataType = 0;
+		const auto clusterDataType = cluster::type;
 		MPI_Gather(
 			clusters.data(), numClusters, clusterDataType,
 			remoteClusters.data(), numClusters, clusterDataType,

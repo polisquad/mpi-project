@@ -10,6 +10,10 @@ int main(int32 argc, char ** argv)
 {
 	MPI::init(&argc, &argv);
 
+	// Create global command line
+	CommandLine gCommandLine(argc, argv);
+
+	// Start node
 	{
 		// MPI local node
 		Node<float32> node;
