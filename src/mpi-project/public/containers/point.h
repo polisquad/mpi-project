@@ -11,7 +11,7 @@
  * 
  * A multi-dimensional point
  */
-template<typename T, uint32 N>
+template<typename T, uint32 N = POINT_MAX_SIZE>
 class Point : public MPI::DataType<Point<T, N>>
 {
 protected:
@@ -62,7 +62,7 @@ protected:
 		if (it != b1 + n)
 			out += (it[0] * it[0]);
 		
-		return norm2;
+		return out;
 	}
 
 	/**
@@ -269,6 +269,17 @@ public:
 		// Use min size
 		r.size = size < p.size ? size : p.size;
 		add(r.data, p.data, r.size);
+
+		return r;
+	}
+
+	Point operator-(const Point p) const
+	{
+		Point r(*this);
+
+		// Use min size
+		r.size = size < p.size ? size : p.size;
+		sub(r.data, p.data, r.size);
 
 		return r;
 	}

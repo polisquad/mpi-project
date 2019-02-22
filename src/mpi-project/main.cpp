@@ -5,6 +5,7 @@
 #include "containers/cluster.h"
 #include "mpi/node.h"
 #include "utils/command_line.h"
+#include "utils/data_generator.h"
 
 int main(int32 argc, char ** argv)
 {
@@ -21,21 +22,20 @@ int main(int32 argc, char ** argv)
 		// MPI local node
 		Node<float32> node;
 
-		// Read dataset
+		// Read or create dataset
 		{
 			std::string filename;
-			if (!CommandLine::get().getValue("input", filename))
-			{
-				// An input is required, otherwise execution fails
-				fprintf(stderr, "Usage: mpi-project input [output] [options]\n");
-				return 1;
-			}
-
-			node.readDataset(filename);
+			if (CommandLine::get().getValue("input", filename))
+				node.readDataset(filename);
+			else
+				node.createDataset();
 		}
 
 		// Run algorithm
-		node.run();
+		{
+			MPI::ScopedTimer _;
+			node.run();
+		}
 
 		// Write output file
 		{

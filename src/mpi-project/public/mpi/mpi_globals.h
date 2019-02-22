@@ -65,7 +65,33 @@ namespace MPI
 		/// MPI data type
 		static MPI_Datatype type;
 	};
+
+	/**
+	 * @struct ScopedTimer mpi/mpi_globals.h
+	 * 
+	 * Time a scoped region and print result
+	 */
+	struct ScopedTimer
+	{
+	protected:
+		/// Start time
+		float64 startTime;
+
+	public:
+		/// Default constructor
+		FORCE_INLINE ScopedTimer() : startTime(time()) {}
+
+		/// Destructor
+		FORCE_INLINE ~ScopedTimer()
+		{
+			printf("elapsed time: %.3fs\n", time() - startTime);
+		}
+	};
 } /// MPI
+
+//////////////////////////////////////////////////
+// MPI::DataType
+//////////////////////////////////////////////////
 
 template<typename T>
 MPI_Datatype MPI::DataType<T>::type = MPI_AINT;

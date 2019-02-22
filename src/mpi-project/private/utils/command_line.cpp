@@ -16,7 +16,7 @@ CommandLine::CommandLine(int32 argc, char ** argv)
 	{
 		const char * arg = argv[i];
 
-		if (*arg == '-')
+		if (arg[0] == '-' & arg[1] == '-')
 			currentArg = i;
 		else if (currentArg != 0)
 			valueMap.insert(PairT(argv[currentArg] + 2, arg)), currentArg = 0;

@@ -9,6 +9,7 @@
 #include "utils/csv_parser.h"
 #include "utils/csv_writer.h"
 #include "utils/scoped_lock.h"
+#include "utils/data_generator.h"
 #include "omp/critical_section.h"
 
 #include <string>
@@ -48,6 +49,9 @@ protected:
 	/// Node local vector of memberships
 	std::vector<int32> memberships;
 
+	/// Clusters critical sections
+	std::vector<OMP::CriticalSection> clusterGuards;
+
 public:
 	/// Default constructor
 	FORCE_INLINE Node(MPI_Comm _communicator = MPI_COMM_WORLD) :
@@ -77,6 +81,9 @@ public:
 		auto & gCommandLine = CommandLine::get();
 		gCommandLine.getValue("num-clusters", numClusters);
 		gCommandLine.getValue("init-method", initMethod);
+
+		// Init cluster guards
+		clusterGuards.resize(numClusters);
 
 		// Compute initial clusters setup
 		if (rank == 0)
@@ -110,6 +117,33 @@ public:
 			// Create parser
 			CsvParser<T> parser(filename);
 			globalDataset = parser.parse();
+
+			// Init memberships
+			memberships.resize(globalDataset.size());
+		}
+
+		loadDataset();
+	}
+
+	/// Create test dataset and send points to other nodes
+	FORCE_INLINE void createDataset()
+	{
+		// Dataset creation options
+		uint32
+			numDataPoints	= 1024,
+			dataDim			= 2,
+			numClusters		= 5;
+		
+		// Read from command line
+		auto & commandLine = CommandLine::get();
+		commandLine.getValue("gen-num", numDataPoints);
+		commandLine.getValue("gen-dim", dataDim);
+		commandLine.getValue("num-clusters", numClusters);
+
+		{
+			// Create data generator
+			DataGenerator<T> generator(numDataPoints, numClusters, dataDim);
+			globalDataset = generator.generate();
 
 			// Init memberships
 			memberships.resize(globalDataset.size());
@@ -170,9 +204,6 @@ protected:
 		const uint32 numClusters = clusters.size();
 		const uint32 numDataPoints = localDataset.size();
 
-		// Set of critical sections
-		std::vector<OMP::CriticalSection> guards(numClusters, OMP::CriticalSection());
-
 		#pragma omp parallel
 		{
 			// Private copy of clusters
@@ -203,7 +234,7 @@ protected:
 			#pragma omp for
 			for (uint32 k = 0; k < numClusters; ++k)
 			{
-				ScopedLock<OMP::CriticalSection> _(&guards[k]);
+				ScopedLock<OMP::CriticalSection> _(&clusterGuards[k]);
 				clusters[k].fuse(threadClusters[k]);
 			}
 		}
