@@ -22,6 +22,9 @@ int main(int32 argc, char ** argv)
 		// MPI local node
 		Node<float32> node;
 
+		// Memberships vector
+		std::vector<int32> memberships;
+
 		// Read or create dataset
 		{
 			std::string filename;
@@ -34,14 +37,14 @@ int main(int32 argc, char ** argv)
 		// Run algorithm
 		{
 			MPI::ScopedTimer _;
-			node.run();
+			node.run(memberships);
 		}
 
 		// Write output file
 		{
 			std::string filename;
-			if (CommandLine::get().getValue("output", filename));
-				node.writeDataset("data/out.csv");
+			if (CommandLine::get().getValue("output", filename))
+				node.writeDataset(filename);
 		}
 	}
 

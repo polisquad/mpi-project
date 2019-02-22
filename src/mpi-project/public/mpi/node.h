@@ -47,10 +47,16 @@ protected:
 	std::vector<cluster> clusters;
 
 	/// Node local vector of memberships
-	std::vector<int32> memberships;
+	std::vector<int32> localMemberships;
 
 	/// Clusters critical sections
 	std::vector<OMP::CriticalSection> clusterGuards;
+
+	/// Root only variables for dataset sync
+	/// @{
+	std::vector<int32> dataChunks;
+	std::vector<int32> displacements;
+	/// @}
 
 public:
 	/// Default constructor
@@ -71,7 +77,7 @@ public:
 	//////////////////////////////////////////////////
 
 	/// Run algorithm
-	FORCE_INLINE void run()
+	FORCE_INLINE void run(std::vector<int32> & globalMemberships)
 	{
 		// Default values
 		uint32 numClusters = 5;
@@ -94,6 +100,8 @@ public:
 			else
 				clusters = cluster::initRandom(globalDataset, numClusters);
 		}
+		else
+			clusters.resize(numClusters);
 
 		// Optimization loop
 		for (uint32 epoch = 0; epoch < 100; ++epoch)
@@ -107,6 +115,20 @@ public:
 			// Gather remote centroids and update global
 			updateGlobalClusters();
 		}
+
+		// Compute final memberships
+		const uint32 numDataPoints = globalDataset.size();
+		globalMemberships.resize(numDataPoints);
+
+		MPI_Gatherv(
+			localMemberships.data(), localDataset.size(), MPI::DataType<int32>::type,
+			globalMemberships.data(), dataChunks.data(), displacements.data(), MPI::DataType<int32>::type,
+			0, communicator
+		);
+
+		if (rank == 0)
+			// Update only root local copy of membership
+			localMemberships = globalMemberships;
 	}
 	
 	/// Import dataset and send points to other nodes
@@ -117,13 +139,9 @@ public:
 			// Create parser
 			CsvParser<T> parser(filename);
 			globalDataset = parser.parse();
-
-			// Init memberships
-			memberships.resize(globalDataset.size());
 		}
 
-		localDataset = globalDataset;
-		//loadDataset();
+		loadDataset();
 	}
 
 	/// Create test dataset and send points to other nodes
@@ -141,25 +159,23 @@ public:
 		commandLine.getValue("gen-dim", dataDim);
 		commandLine.getValue("num-clusters", numClusters);
 
+		if (rank == 0)
 		{
 			// Create data generator
 			DataGenerator<T> generator(numDataPoints, numClusters, dataDim);
 			globalDataset = generator.generate();
-
-			// Init memberships
-			memberships.resize(globalDataset.size());
 		}
 
 		loadDataset();
 	}
 
-	/// @todo Write dataset to disk
+	/// Write dataset to disk
 	FORCE_INLINE void writeDataset(const std::string & filename)
 	{
 		if (rank == 0)
 		{
 			CsvWriter<T> writer(filename);
-			writer.write(localDataset, memberships);
+			writer.write(globalDataset, localMemberships);
 		}
 	}
 
@@ -172,21 +188,21 @@ protected:
 
 		// Get data chunks
 		int32 receiveCount = 0;
-		std::vector<int32> dataChunks = getDataChunks(numDataPoints, commSize);
+		dataChunks = getDataChunks(numDataPoints, commSize);
 		
 		// Tell each node how many points it will receive
 		MPI_Scatter(
-			dataChunks.data(), commSize, MPI::DataType<int32>::type,
-			&receiveCount, commSize, MPI::DataType<int32>::type,
+			dataChunks.data(), 1, MPI::DataType<int32>::type,
+			&receiveCount, 1, MPI::DataType<int32>::type,
 			0, communicator
 		);
 
 		// Init vectors size
 		localDataset.resize(receiveCount);
-		memberships.resize(receiveCount);
+		localMemberships.resize(receiveCount);
 
 		// Compute scatterv displacements
-		std::vector<int32> displacements(commSize, 0);
+		displacements.resize(commSize);
 		for (int32 d = 0, i = 0; d < numDataPoints; d += dataChunks[i++])
 			displacements[i] = d;
 
@@ -197,6 +213,10 @@ protected:
 			localDataset.data(), receiveCount, pointDataType,
 			0, communicator
 		);
+
+	#if BUILD_DEBUG
+		printf("node #%d received %d points\n", rank, receiveCount);
+	#endif
 	}
 
 	/// Optimization routine
@@ -229,7 +249,7 @@ protected:
 				threadClusters[clusterIdx].addWeight(p, 1.f);
 
 				// Update local membership
-				memberships[i] = clusterIdx;
+				localMemberships[i] = clusterIdx;
 			}
 
 			for (uint32 k = 0; k < numClusters; ++k)
@@ -284,7 +304,7 @@ protected:
 		std::vector<int32> chunks(numNodes, perNode);
 
 		// Assign remaining points
-		uint64 remaining = numDataPoints - perNode;
+		uint64 remaining = numDataPoints - perNode * numNodes;
 		for (uint32 i = 0; remaining > 0; ++i, --remaining)
 			++chunks[i];
 		
