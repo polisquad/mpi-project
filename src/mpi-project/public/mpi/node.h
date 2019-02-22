@@ -122,7 +122,8 @@ public:
 			memberships.resize(globalDataset.size());
 		}
 
-		loadDataset();
+		localDataset = globalDataset;
+		//loadDataset();
 	}
 
 	/// Create test dataset and send points to other nodes
@@ -162,6 +163,7 @@ public:
 		}
 	}
 
+protected:
 	/// Load dataset on other nodes
 	void loadDataset()
 	{
@@ -197,7 +199,6 @@ public:
 		);
 	}
 
-protected:
 	/// Optimization routine
 	void optimize()
 	{
@@ -209,14 +210,14 @@ protected:
 			// Private copy of clusters
 			auto threadClusters = clusters;
 
-			#pragma for nowait
+			#pragma omp for nowait
 			for (uint64 i = 0; i < numDataPoints; ++i)
 			{
 				const auto & p = localDataset[i];
 
 				// Take dist of first cluster
 				uint32 clusterIdx = 0;
-				float32 minDist = clusters[0].getDistance(p);
+				float32 minDist = threadClusters[0].getDistance(p);
 
 				// Find closest cluster
 				for (uint32 k = 1; k < numClusters; ++k)
@@ -231,7 +232,6 @@ protected:
 				memberships[i] = clusterIdx;
 			}
 
-			#pragma omp for
 			for (uint32 k = 0; k < numClusters; ++k)
 			{
 				ScopedLock<OMP::CriticalSection> _(&clusterGuards[k]);
