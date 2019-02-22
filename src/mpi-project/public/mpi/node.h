@@ -8,6 +8,8 @@
 #include "utils/command_line.h"
 #include "utils/csv_parser.h"
 #include "utils/csv_writer.h"
+#include "utils/scoped_lock.h"
+#include "omp/critical_section.h"
 
 #include <string>
 #include <vector>
@@ -122,24 +124,24 @@ public:
 		if (rank == 0)
 		{
 			CsvWriter<T> writer(filename);
-			writer.write(globalDataset, memberships);
+			writer.write(localDataset, memberships);
 		}
 	}
 
 	/// Load dataset on other nodes
 	void loadDataset()
 	{
-		const uint32 numDataPoints	= localDataset.size();
+		const uint32 numDataPoints	= globalDataset.size();
 		const uint32 commSize		= MPI::getCommSize(communicator);
 
 		// Get data chunks
 		int32 receiveCount = 0;
-		std::vector<int32> dataChunks = getDataChunks(globalDataset.size(), commSize);
+		std::vector<int32> dataChunks = getDataChunks(numDataPoints, commSize);
 		
 		// Tell each node how many points it will receive
 		MPI_Scatter(
-			dataChunks.data(), 1, MPI::DataType<int32>::type,
-			&receiveCount, 1, MPI::DataType<int32>::type,
+			dataChunks.data(), commSize, MPI::DataType<int32>::type,
+			&receiveCount, commSize, MPI::DataType<int32>::type,
 			0, communicator
 		);
 
@@ -152,7 +154,7 @@ public:
 		for (int32 d = 0, i = 0; d < numDataPoints; d += dataChunks[i++])
 			displacements[i] = d;
 
-		// @todo Scatter points among nodes
+		// Scatter points among nodes
 		const auto pointDataType = point::type;
 		MPI_Scatterv(
 			globalDataset.data(), dataChunks.data(), displacements.data(), pointDataType,
@@ -162,42 +164,49 @@ public:
 	}
 
 protected:
-	/// @todo Optimization routine
+	/// Optimization routine
 	void optimize()
 	{
 		const uint32 numClusters = clusters.size();
 		const uint32 numDataPoints = localDataset.size();
 
-		// Computed centroid sums
-		std::vector<point> centroids(numClusters);
-		std::vector<float32> weights(numClusters);
+		// Set of critical sections
+		std::vector<OMP::CriticalSection> guards(numClusters, OMP::CriticalSection());
 
-		//#pragma omp parallel for
-		for (uint64 i = 0; i < numDataPoints; ++i)
+		#pragma omp parallel
 		{
-			const auto & point = localDataset[i];
+			// Private copy of clusters
+			auto threadClusters = clusters;
 
-			// Take dist of first cluster
-			uint32 clusterIdx = 0;
-			float32 minDist = clusters[0].getDistance(point);
-
-			// Find closest cluster
-			for (uint32 k = 1; k < numClusters; ++k)
+			#pragma for nowait
+			for (uint64 i = 0; i < numDataPoints; ++i)
 			{
-				float32 dist = clusters[k].getDistance(point);
-				if (dist < minDist) dist = minDist, clusterIdx = k;
+				const auto & p = localDataset[i];
+
+				// Take dist of first cluster
+				uint32 clusterIdx = 0;
+				float32 minDist = clusters[0].getDistance(p);
+
+				// Find closest cluster
+				for (uint32 k = 1; k < numClusters; ++k)
+				{
+					float32 dist = threadClusters[k].getDistance(p);
+					if (dist < minDist) minDist = dist, clusterIdx = k;
+				}
+				
+				threadClusters[clusterIdx].addWeight(p, 1.f);
+
+				// Update local membership
+				memberships[i] = clusterIdx;
 			}
 
-			centroids[clusterIdx] += point;
-			weights[clusterIdx] += 1.f;
-
-			// Update local membership
-			memberships[i] = clusterIdx;
+			#pragma omp for
+			for (uint32 k = 0; k < numClusters; ++k)
+			{
+				ScopedLock<OMP::CriticalSection> _(&guards[k]);
+				clusters[k].fuse(threadClusters[k]);
+			}
 		}
-
-		// Update local clusters
-		for (uint32 k = 0; k < numClusters; ++k)
-			clusters[k].addWeight(centroids[k], weights[k]);
 	}
 
 	/// Update local clusters
@@ -227,7 +236,7 @@ protected:
 		if (rank == 0)
 		{
 			// Fuse clusters
-			for (uint32 i = 0; i < remoteClusters.size(); ++i)
+			for (uint32 i = numClusters; i < remoteClusters.size(); ++i)
 				clusters[i % numClusters].fuse(remoteClusters[i]);
 			
 			// Commit changes

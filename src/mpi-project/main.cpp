@@ -8,6 +8,9 @@
 
 int main(int32 argc, char ** argv)
 {
+	// Init random
+	srand(clock());
+
 	MPI::init(&argc, &argv);
 
 	// Create global command line

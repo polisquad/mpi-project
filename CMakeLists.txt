@@ -23,7 +23,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
 ## CXX preferences
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAG} -fopenmp -pthread") # Not sure about OpenMP
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAG} -fopenmp -pthread")
 
 # Code setup ------------------------------------
 ## Source code

@@ -23,7 +23,7 @@ protected:
 
 public:
 	/// Default constructor, zero initialize
-	FORCE_INLINE Point(uint32 _size = N) :
+	explicit FORCE_INLINE Point(uint32 _size = N) :
 		data{},
 		size(_size < N ? _size : N) {}
 	
@@ -304,11 +304,11 @@ public:
 	/// Creates the MPI datatype, if not already created
 	static FORCE_INLINE MPI_Datatype createMpiType()
 	{
-		const int32 blockSize[] = {N};
-		const MPI_Aint blockDisplacement[] = {0};
-		const MPI_Datatype blockType[] = {MPI::DataType<T>::type};
+		const int32 blockSize[] = {N, 1};
+		const MPI_Aint blockDisplacement[] = {0, offsetof(Point, size)};
+		const MPI_Datatype blockType[] = {MPI::DataType<T>::type, MPI::DataType<uint32>::type};
 
-		MPI_Type_create_struct(1, blockSize, blockDisplacement, blockType, &Point::type);
+		MPI_Type_create_struct(2, blockSize, blockDisplacement, blockType, &Point::type);
 
 		// Commit type
 		MPI_Type_commit(&Point::type);

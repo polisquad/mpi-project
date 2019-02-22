@@ -190,7 +190,7 @@ public:
 			uint32 furthest = -1;
 			float32 maxDist = 0.f;
 
-			for (uint32 i = 1; i < numDataPoints; ++i)
+			for (uint32 i = 0; i < numDataPoints; ++i)
 			{
 				const auto & dataPoint = dataPoints[i];
 				float32 dist = FLT_MAX;
