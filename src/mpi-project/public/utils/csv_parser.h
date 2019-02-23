@@ -74,14 +74,14 @@ public:
 	}
 
 	/// Parse file
-	FORCE_INLINE std::vector<point> parse(uint32 start = 0, uint32 end = (uint32)-1)
+	FORCE_INLINE Array<point> parse(uint32 start = 0, uint32 end = (uint32)-1)
 	{
-		std::vector<point> out; out.reserve(rows);
+		Array<point> out; out.reserve(rows);
 
 		char line[256];
 		for(uint64 i = 0; fgets(line, 256, fp) && i < end; ++i)
 			if (i >= start)
-				out.push_back(parseLine(line));
+				out.push(parseLine(line));
 		
 		return out;
 	}

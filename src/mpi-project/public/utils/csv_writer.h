@@ -37,10 +37,10 @@ public:
 	}
 
 	/// Write csv file
-	uint32 FORCE_INLINE write(const std::vector<point> & values, const std::vector<int32> & tags)
+	uint32 FORCE_INLINE write(const Array<point> & values, const Array<int32> & tags)
 	{
 		int32 rows = 0;
-		for (; rows < values.size(); ++rows)
+		for (; rows < values.getCount(); ++rows)
 			writeLine(values[rows], tags[rows]);
 		
 		return rows;

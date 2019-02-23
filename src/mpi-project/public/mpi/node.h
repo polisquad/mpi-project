@@ -38,24 +38,24 @@ protected:
 	int32 rank;
 
 	/// Global dataset
-	std::vector<point> globalDataset;
+	Array<point> globalDataset;
 
 	/// Node local points
-	std::vector<point> localDataset;
+	Array<point> localDataset;
 
 	/// Node local clusters
-	std::vector<cluster> clusters;
+	Array<cluster> clusters;
 
 	/// Node local vector of memberships
-	std::vector<int32> localMemberships;
+	Array<int32> localMemberships;
 
 	/// Clusters critical sections
-	std::vector<OMP::CriticalSection> clusterGuards;
+	Array<OMP::CriticalSection> clusterGuards;
 
 	/// Root only variables for dataset sync
 	/// @{
-	std::vector<int32> dataChunks;
-	std::vector<int32> displacements;
+	Array<int32> dataChunks;
+	Array<int32> displacements;
 	/// @}
 
 public:
@@ -77,7 +77,7 @@ public:
 	//////////////////////////////////////////////////
 
 	/// Run algorithm
-	FORCE_INLINE void run(std::vector<int32> & globalMemberships)
+	FORCE_INLINE void run(Array<int32> & globalMemberships)
 	{
 		// Default values
 		uint32 numClusters = 5;
@@ -91,7 +91,7 @@ public:
 		gCommandLine.getValue("init-method", initMethod);
 
 		// Init cluster guards
-		clusterGuards.resize(numClusters);
+		clusterGuards = Array<OMP::CriticalSection>(numClusters, OMP::CriticalSection());
 
 		// Compute initial clusters setup
 		if (rank == 0)
@@ -103,7 +103,7 @@ public:
 				clusters = cluster::initRandom(globalDataset, numClusters);
 		}
 		else
-			clusters.resize(numClusters);
+			clusters(numClusters);
 
 		// Optimization loop
 		for (uint32 epoch = 0; epoch < numEpochs; ++epoch)
@@ -119,11 +119,11 @@ public:
 		}
 
 		// Compute final memberships
-		const uint32 numDataPoints = globalDataset.size();
+		const uint32 numDataPoints = globalDataset.getCount();
 		globalMemberships.resize(numDataPoints);
 
 		MPI_Gatherv(
-			localMemberships.data(), localDataset.size(), MPI::DataType<int32>::type,
+			localMemberships.data(), localDataset.getCount(), MPI::DataType<int32>::type,
 			globalMemberships.data(), dataChunks.data(), displacements.data(), MPI::DataType<int32>::type,
 			0, communicator
 		);
@@ -185,7 +185,7 @@ protected:
 	/// Load dataset on other nodes
 	void loadDataset()
 	{
-		const uint32 numDataPoints	= globalDataset.size();
+		const uint32 numDataPoints	= globalDataset.getCount();
 		const uint32 commSize		= MPI::getCommSize(communicator);
 
 		// Get data chunks
@@ -224,8 +224,8 @@ protected:
 	/// Optimization routine
 	void optimize()
 	{
-		const uint32 numClusters = clusters.size();
-		const uint32 numDataPoints = localDataset.size();
+		const uint32 numClusters = clusters.getCount();
+		const uint32 numDataPoints = localDataset.getCount();
 
 		#pragma omp parallel
 		{
@@ -266,17 +266,17 @@ protected:
 	FORCE_INLINE void updateLocalClusters()
 	{
 		// @todo Broadcast updated clusters
-		MPI_Bcast(clusters.data(), clusters.size(), cluster::type, 0, communicator);
+		MPI_Bcast(clusters.data(), clusters.getCount(), cluster::type, 0, communicator);
 	}
 
 	/// Gather remote clusters and fuse with global clusters
 	void updateGlobalClusters()
 	{
 		const uint32 commSize		= MPI::getCommSize(communicator);
-		const uint32 numClusters	= clusters.size();
+		const uint32 numClusters	= clusters.getCount();
 
 		// Init remote clusters vector
-		std::vector<cluster> remoteClusters(commSize * numClusters);
+		Array<cluster> remoteClusters(commSize * numClusters);
 
 		// @todo Gather remote clusters
 		const auto clusterDataType = cluster::type;
@@ -289,21 +289,21 @@ protected:
 		if (rank == 0)
 		{
 			// Fuse clusters
-			for (uint32 i = numClusters; i < remoteClusters.size(); ++i)
+			for (uint32 i = numClusters; i < remoteClusters.getCount(); ++i)
 				clusters[i % numClusters].fuse(remoteClusters[i]);
 			
 			// Commit changes
-			for (uint32 i = 0; i < clusters.size(); ++i)
+			for (uint32 i = 0; i < clusters.getCount(); ++i)
 				clusters[i].commit();
 		}
 	}
 
 	/// Get data splits
-	static FORCE_INLINE std::vector<int32> getDataChunks(uint64 numDataPoints, uint32 numNodes)
+	static FORCE_INLINE Array<int32> getDataChunks(uint64 numDataPoints, uint32 numNodes)
 	{
 		// Assign points
 		const uint64 perNode = numDataPoints / numNodes;
-		std::vector<int32> chunks(numNodes, perNode);
+		Array<int32> chunks(numNodes, perNode);
 
 		// Assign remaining points
 		uint64 remaining = numDataPoints - perNode * numNodes;

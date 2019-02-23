@@ -2,6 +2,7 @@
 
 #include "core_types.h"
 #include "templates/const_ref.h"
+#include "templates/simd.h"
 #include "mpi/mpi_globals.h"
 
 #define POINT_MAX_SIZE 8
@@ -11,7 +12,7 @@
  * 
  * A multi-dimensional point
  */
-template<typename T, uint32 N = POINT_MAX_SIZE>
+template<typename T, uint32 N = POINT_MAX_SIZE, bool = hasVectorIntrinsics(T, N)>
 class Point : public MPI::DataType<Point<T, N>>
 {
 protected:
@@ -306,7 +307,7 @@ public:
 	 * 
 	 * @param out out stream
 	 */
-	FORCE_INLINE void print(FILE * out = stdout);
+	FORCE_INLINE void print(FILE * out = stdout) const;
 
 	//////////////////////////////////////////////////
 	// MPI Interface
@@ -327,8 +328,15 @@ public:
 	}
 };
 
+/// Include vector intrinsics specialization
+#include "point_simd.h"
+
+//////////////////////////////////////////////////
+// float32 specialization
+//////////////////////////////////////////////////
+
 template<>
-void Point<float32, POINT_MAX_SIZE>::print(FILE * out)
+inline void Point<float32, POINT_MAX_SIZE>::print(FILE * out) const
 {
 	uint32 i = 0;
 

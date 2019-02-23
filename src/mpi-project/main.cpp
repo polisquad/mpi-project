@@ -6,12 +6,46 @@
 #include "mpi/node.h"
 #include "utils/command_line.h"
 #include "utils/data_generator.h"
+#include "containers/array.h"
 
 /// Print help dialog
 void help();
 
 int main(int32 argc, char ** argv)
 {
+	/* Array<point> values(1024, point());
+	values[0][0] = 1.f;
+
+	MPI::init(&argc, &argv);
+
+	MPI_Datatype vecType = point::createMpiType();
+
+#if 0
+	int32 blocks[] = {8};
+	MPI_Aint strides[] = {0};
+	MPI_Datatype types[] = {MPI_FLOAT};
+	MPI_Type_create_struct(1, blocks, strides, types, &vecType);
+	MPI_Type_commit(&vecType);
+#endif
+
+	std::vector<int32> dataChunks{1024};
+	std::vector<int32> displacements{0};
+	Array<point> recvd(1024);
+	recvd(1023);
+
+	MPI_Scatterv(
+		values.data(), dataChunks.data(), displacements.data(), vecType,
+		recvd.data(), 1024, vecType,
+		0, MPI_COMM_WORLD
+	);
+
+	values[0].print();
+	recvd[0].print();	
+
+	MPI::shutdown();
+
+	return 0; */
+
 	// Init random
 	srand(clock());
 
@@ -32,7 +66,7 @@ int main(int32 argc, char ** argv)
 		Node<float32> node;
 
 		// Memberships vector
-		std::vector<int32> memberships;
+		Array<int32> memberships;
 
 		// Read or create dataset
 		{

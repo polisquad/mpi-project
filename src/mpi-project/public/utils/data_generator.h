@@ -2,9 +2,9 @@
 
 #include "core_types.h"
 #include "containers/point.h"
+#include "containers/array.h"
 
 #include <omp.h>
-#include <vector>
 
 /**
  * @class DataGenerator utils/data_generator.h
@@ -32,7 +32,7 @@ public:
 		dataDim(_dataDim) {}
 	
 	/// Generate new dataset
-	std::vector<Point<T>> generate()
+	Array<Point<T>> generate()
 	{
 		// In order to generate a dataset
 		// suitable for kmeans, we compute
@@ -43,14 +43,14 @@ public:
 		const uint32 clusterLoad = numDataPoints / numClusters;
 
 		// Dataset
-		std::vector<Point<T>> out(clusterLoad * numClusters);
+		Array<Point<T>> out(clusterLoad * numClusters);
 
 		for (uint32 k = 0; k < numClusters; ++k)
 		{
 			const uint64 offset = k * (uint64)clusterLoad;
 
 			// Cluster points
-			std::vector<Point<T>> clusterPoints(clusterLoad);
+			Array<Point<T>> clusterPoints(clusterLoad);
 
 			// Get random point
 			Point<T> center(dataDim);

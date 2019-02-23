@@ -1,10 +1,9 @@
 #pragma once
 
 #include "core_types.h"
+#include "array.h"
 #include "templates/const_ref.h"
 #include "mpi/mpi_globals.h"
-
-#include <vector>
 
 /**
  * @class Cluster containers/cluster.h
@@ -76,10 +75,10 @@ public:
 	/// Cluster initialization algorithms
 	/// @{
 	/// Randomly pick k centroids
-	static std::vector<Cluster> initRandom(const std::vector<T> & dataPoints, uint32 numClusters)
+	static Array<Cluster> initRandom(const Array<T> & dataPoints, uint32 numClusters)
 	{
-		std::vector<Cluster> clusters;
-		const uint32 numDataPoints = dataPoints.size();
+		Array<Cluster> clusters;
+		const uint32 numDataPoints = dataPoints.getCount();
 
 		// Init clusters
 		clusters.reserve(numClusters);
@@ -90,7 +89,7 @@ public:
 			for (const auto & dataPoint : dataPoints)
 			{
 				Cluster cluster(dataPoint);
-				clusters.push_back(cluster);
+				clusters.push(cluster);
 			}
 			
 			return clusters;
@@ -115,7 +114,7 @@ public:
 			pick[i] = idx;
 			
 			Cluster cluster(dataPoints[idx]);
-			clusters.push_back(cluster);
+			clusters.push(cluster);
 		}
 
 		delete[] pick;
@@ -123,10 +122,10 @@ public:
 	}
 
 	/// Find k furthest centroids
-	static std::vector<Cluster> initFurthest(const std::vector<T> & dataPoints, uint32 numClusters)
+	static Array<Cluster> initFurthest(const Array<T> & dataPoints, uint32 numClusters)
 	{
-		std::vector<Cluster> clusters;
-		const uint32 numDataPoints = dataPoints.size();
+		Array<Cluster> clusters;
+		const uint32 numDataPoints = dataPoints.getCount();
 
 		// Make space for clusters
 		clusters.reserve(numClusters);
@@ -136,7 +135,7 @@ public:
 			for (const auto & dataPoint : dataPoints)
 			{
 				Cluster cluster(dataPoint);
-				clusters.push_back(cluster);
+				clusters.push(cluster);
 			}
 			
 			return clusters;
@@ -146,7 +145,7 @@ public:
 		// Randomly choose first
 		{
 			Cluster cluster(dataPoints[rand() % numDataPoints]);
-			clusters.push_back(cluster);
+			clusters.push(cluster);
 		}
 	#elif 0
 		{
@@ -167,7 +166,7 @@ public:
 			}
 
 			cluster.reset(dataPoints[smallest]);
-			clusters.push_back(cluster);
+			clusters.push(cluster);
 		}	
 	#else
 		{
@@ -180,12 +179,12 @@ public:
 				average += dataPoints[i];
 
 			cluster.reset(average * (1.f / i));
-			clusters.push_back(cluster);
+			clusters.push(cluster);
 		}
 
 	#endif
 
-		while (clusters.size() < numClusters)
+		while (clusters.getCount() < numClusters)
 		{
 			uint32 furthest = -1;
 			float32 maxDist = 0.f;
@@ -210,7 +209,7 @@ public:
 
 			// Add furthest to k set
 			Cluster cluster(dataPoints[furthest]);
-			clusters.push_back(cluster);
+			clusters.push(cluster);
 		}
 
 		return clusters;

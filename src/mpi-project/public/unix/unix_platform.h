@@ -27,7 +27,7 @@ typedef struct UnixPlatformTypes : public GenericPlatformTypes
 /// Enable SIMD intrinsics on x86[-64] only
 
 #if defined(_M_IX86) || defined(__i386) || defined(_M_X64) || defined(__x86_64) || defined(__amd64)
-	#define PLATFORM_ENABLE_SIMD 1
+	#define PLATFORM_ENABLE_SIMD 0
 #else
 	#define PLATFORM_ENABLE_SIMD 0
 #endif
