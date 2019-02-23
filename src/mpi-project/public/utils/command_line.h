@@ -26,6 +26,8 @@ public:
 	 * 
 	 * @param [in] name
 	 * @param [out] value
+	 * @returns true if value exists, false otherwise
+	 * @{
 	 */
 	template<typename T>
 	inline bool getValue(const std::string & name, T & value)
@@ -39,6 +41,12 @@ public:
 
 		return false;
 	}
+
+	FORCE_INLINE bool getValue(const std::string & name)
+	{
+		return valueMap.find(name) != valueMap.end();
+	}
+	/// @}
 };
 
 /// @ref getValue() specializations

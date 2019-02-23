@@ -81,11 +81,13 @@ public:
 	{
 		// Default values
 		uint32 numClusters = 5;
+		uint32 numEpochs = 100;
 		std::string initMethod;
 
 		// Read from command line
 		auto & gCommandLine = CommandLine::get();
 		gCommandLine.getValue("num-clusters", numClusters);
+		gCommandLine.getValue("num-epochs", numEpochs);
 		gCommandLine.getValue("init-method", initMethod);
 
 		// Init cluster guards
@@ -104,7 +106,7 @@ public:
 			clusters.resize(numClusters);
 
 		// Optimization loop
-		for (uint32 epoch = 0; epoch < 100; ++epoch)
+		for (uint32 epoch = 0; epoch < numEpochs; ++epoch)
 		{
 			// Get updated clusters
 			updateLocalClusters();

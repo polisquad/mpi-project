@@ -17,7 +17,12 @@ CommandLine::CommandLine(int32 argc, char ** argv)
 		const char * arg = argv[i];
 
 		if (arg[0] == '-' & arg[1] == '-')
+		{
+			if (currentArg != 0)
+				valueMap.insert(PairT(argv[currentArg] + 2, ""));
+
 			currentArg = i;
+		}
 		else if (currentArg != 0)
 			valueMap.insert(PairT(argv[currentArg] + 2, arg)), currentArg = 0;
 		else if (!bFoundInput)
@@ -25,4 +30,8 @@ CommandLine::CommandLine(int32 argc, char ** argv)
 		else if (!bFoundOutput)
 			valueMap.insert(PairT("output", arg)), bFoundOutput = true;
 	}
+
+	// Pending parameter?
+	if (currentArg != 0)
+		valueMap.insert(PairT(argv[currentArg] + 2, ""));
 }
