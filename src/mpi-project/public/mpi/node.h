@@ -103,7 +103,7 @@ public:
 				clusters = cluster::initRandom(globalDataset, numClusters);
 		}
 		else
-			clusters(numClusters);
+			clusters.resize(numClusters);
 
 		// Optimization loop
 		for (uint32 epoch = 0; epoch < numEpochs; ++epoch)
@@ -237,7 +237,7 @@ protected:
 		const uint32 numClusters = clusters.getCount();
 		const uint32 numDataPoints = localDataset.getCount();
 
-		//#pragma omp parallel
+		#pragma omp parallel
 		{
 			// Private copy of clusters
 			auto threadClusters = clusters;
