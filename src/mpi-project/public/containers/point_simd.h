@@ -226,6 +226,7 @@ public:
 		const MPI_Datatype blockType[] = {MPI::DataType<T>::type, MPI::DataType<uint32>::type};
 
 		MPI_Type_create_struct(2, blockSize, blockDisplacement, blockType, &Point::type);
+		MPI_Type_create_resized(Point::type, 0, sizeof(Point), &Point::type);
 
 		// Commit type
 		MPI_Type_commit(&Point::type);

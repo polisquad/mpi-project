@@ -233,4 +233,16 @@ public:
 		MPI_Type_commit(&Cluster::type);
 		return Cluster::type;
 	}
+
+	//////////////////////////////////////////////////
+	// Debug
+	//////////////////////////////////////////////////
+	
+#if BUILD_DEBUG
+	/// Get cluster centroid
+	/// @{
+	FORCE_INLINE T &		getCurrentCentroid()		{ return centroid; }
+	FORCE_INLINE const T &	getCurrentCentroid() const	{ return centroid; }
+	/// @}
+#endif
 };

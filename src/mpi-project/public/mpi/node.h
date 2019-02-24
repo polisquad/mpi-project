@@ -118,6 +118,16 @@ public:
 			updateGlobalClusters();
 		}
 
+	#if BUILD_DEBUG
+		if (rank == 0)
+		{
+			printf("\n");
+			printf("final clusters:\n");
+			for (auto & cluster : clusters)
+				printf("  "), cluster.getCurrentCentroid().print();
+		}
+	#endif
+
 		// Compute final memberships
 		const uint32 numDataPoints = globalDataset.getCount();
 		globalMemberships.resize(numDataPoints);
@@ -227,7 +237,7 @@ protected:
 		const uint32 numClusters = clusters.getCount();
 		const uint32 numDataPoints = localDataset.getCount();
 
-		#pragma omp parallel
+		//#pragma omp parallel
 		{
 			// Private copy of clusters
 			auto threadClusters = clusters;
