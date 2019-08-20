@@ -79,6 +79,8 @@ public:
 		// Copy content
 		count = other.count;
 		moveOrCopy(buffer, other.buffer, count);
+
+		return *this;
 	}
 
 	/// Move assignment
@@ -92,6 +94,8 @@ public:
 		count	= other.count;
 
 		other.buffer = nullptr; 
+
+		return *this;
 	}
 
 	/// Destructor

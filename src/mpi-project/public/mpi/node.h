@@ -316,7 +316,7 @@ protected:
 		Array<int32> chunks(numNodes, perNode);
 
 		// Assign remaining points
-		uint64 remaining = numDataPoints - perNode * numNodes;
+		uint32 remaining = numDataPoints - perNode * numNodes;
 		for (uint32 i = 0; remaining > 0; ++i, --remaining)
 			++chunks[i];
 		
