@@ -2,8 +2,6 @@
 
 #include "generic/generic_platform.h"
 
-#include <linux/version.h>
-
 /**
  * @struct UnixPlatformTypes unix/unix_platform.h
  * @brief Unix specific type definitions

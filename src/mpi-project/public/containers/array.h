@@ -7,7 +7,7 @@
 
 /**
  * @class Array containers/array.h
- * 
+ *
  * Replacement for STL vector, with aligned
  * allocator
  */
@@ -79,6 +79,8 @@ public:
 		// Copy content
 		count = other.count;
 		moveOrCopy(buffer, other.buffer, count);
+
+		return *this;
 	}
 
 	/// Move assignment
@@ -91,7 +93,9 @@ public:
 		size	= other.size;
 		count	= other.count;
 
-		other.buffer = nullptr; 
+		other.buffer = nullptr;
+
+		return *this;
 	}
 
 	/// Destructor
@@ -209,7 +213,7 @@ public:
 
 	/**
 	 * Insert a new item in the array
-	 * 
+	 *
 	 * @param [in] item T operand
 	 * @param [in] i target position
 	 */
@@ -220,7 +224,7 @@ public:
 		// Move content up
 		if (LIKELY(i < count))
 			memmove(buffer + i + 1, buffer + i, (count - i) * sizeof(T));
-		
+
 		// Construct object
 		moveOrCopy(buffer[i], item);
 		++count;
@@ -228,7 +232,7 @@ public:
 
 	/**
 	 * Insert multiple items in the array
-	 * 
+	 *
 	 * @param [in] items buffer of items
 	 * @param [in] n number of items
 	 * @param [in] i target position
@@ -248,7 +252,7 @@ public:
 
 	/**
 	 * Add item at the end of the array
-	 * 
+	 *
 	 * @param [in] item T operand
 	 * @{
 	 */
@@ -265,7 +269,7 @@ public:
 
 	/**
 	 * Add multiple items at the end of the array
-	 * 
+	 *
 	 * @param [in] items buffer of items
 	 * @param [in] n number of items
 	 * @{
@@ -283,7 +287,7 @@ public:
 
 	/**
 	 * Remove items at position
-	 * 
+	 *
 	 * @param [in] i item's position
 	 * @param [in] n number of items to remove
 	 */
@@ -292,13 +296,13 @@ public:
 		// Just move back memory
 		if (i < count)
 			memmove(buffer + i, buffer + i + n, (count - i) * sizeof(T));
-		
+
 		count -= n;
 	}
 
 	/// Remove item at the end of the array
 	FORCE_INLINE void pop(uint64 i, uint64 n)
-	{		
+	{
 		--count;
 	}
 };

@@ -3,7 +3,7 @@
 #include "core_types.h"
 
 /// Library include
-#include <mpich/mpi.h>
+#include <mpi.h>
 
 /// Global MPI variables and flags
 /// @{
@@ -56,7 +56,7 @@ namespace MPI
 
 	/**
 	 * @struct DataType mpi/mpi_globals.h
-	 * 
+	 *
 	 * Templated MPI data types
 	 */
 	template<typename T>
@@ -68,7 +68,7 @@ namespace MPI
 
 	/**
 	 * @struct ScopedTimer mpi/mpi_globals.h
-	 * 
+	 *
 	 * Time a scoped region and print result
 	 */
 	struct ScopedTimer

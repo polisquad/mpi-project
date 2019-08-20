@@ -7,7 +7,7 @@
 
 /**
  * @class Cluster containers/cluster.h
- * 
+ *
  * Contains the current cluster centroid and
  * a working cluster setup
  */
@@ -70,6 +70,8 @@ public:
 			workingCentroid = T();
 			weight = 0.f;
 		}
+
+		return *this;
 	}
 
 	/// Cluster initialization algorithms
@@ -91,7 +93,7 @@ public:
 				Cluster cluster(dataPoint);
 				clusters.push(cluster);
 			}
-			
+
 			return clusters;
 		}
 
@@ -107,12 +109,12 @@ public:
 			{
 				idx = rand() % numDataPoints;
 
-				for (uint32 k = 0; k < i & !bDuplicate; ++k)
+				for (uint32 k = 0; k < i && !bDuplicate; ++k)
 					if (pick[k] == idx) bDuplicate = true;
 			} while (bDuplicate);
 
 			pick[i] = idx;
-			
+
 			Cluster cluster(dataPoints[idx]);
 			clusters.push(cluster);
 		}
@@ -137,7 +139,7 @@ public:
 				Cluster cluster(dataPoint);
 				clusters.push(cluster);
 			}
-			
+
 			return clusters;
 		}
 
@@ -167,7 +169,7 @@ public:
 
 			cluster.reset(dataPoints[smallest]);
 			clusters.push(cluster);
-		}	
+		}
 	#else
 		{
 			Cluster cluster;
@@ -219,7 +221,7 @@ public:
 	//////////////////////////////////////////////////
 	// MPI Interface
 	//////////////////////////////////////////////////
-	
+
 	/// Creates the MPI datatype, if not already created
 	static FORCE_INLINE MPI_Datatype createMpiType()
 	{
@@ -237,7 +239,7 @@ public:
 	//////////////////////////////////////////////////
 	// Debug
 	//////////////////////////////////////////////////
-	
+
 #if BUILD_DEBUG
 	/// Get cluster centroid
 	/// @{
