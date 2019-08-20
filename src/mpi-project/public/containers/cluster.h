@@ -12,7 +12,7 @@
  * a working cluster setup
  */
 template<typename T>
-class Cluster : public MPI::DataType<Cluster<T>>
+class GCC_ALIGN(alignof(T)) Cluster : public MPI::DataType<Cluster<T>>
 {
 protected:
 	/// Cluster current centroid
@@ -230,6 +230,9 @@ public:
 		const MPI_Datatype blockType[] = {MPI::DataType<T>::type, MPI::DataType<float32>::type};
 
 		MPI_Type_create_struct(2, blockSize, blockDisplacement, blockType, &Cluster::type);
+
+		// Align bounds to type size
+		MPI_Type_create_resized(Cluster::type, 0, sizeof(Cluster), &Cluster::type);
 
 		// Commit type
 		MPI_Type_commit(&Cluster::type);
